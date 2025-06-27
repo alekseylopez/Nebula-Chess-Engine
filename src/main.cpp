@@ -4,21 +4,15 @@
 
 int main(int argc, char* argv[])
 {
-    nebula::Board* board;
-
-    if(argc == 1)
+    if(argc > 2)
     {
-        board = new nebula::Board();
-    } else if(argc == 2)
-    {
-        board = new nebula::Board(std::string(argv[1]));
-    } else
-    {
-        std::cerr << "Usage:\n    " << argv[0] << "\nor\n    " << argv[0] << " \"<FEN>\"\n";
+        std::cerr << "Usage:    " << argv[0] << " [FEN]\nMake sure to include quotes around a FEN string.\n";
         return 1;
     }
 
-    board->print();
+    nebula::Board board = argc == 1 ? nebula::Board() : nebula::Board(std::string(argv[1]));
+
+    board.print();
     
     return 0;
 }

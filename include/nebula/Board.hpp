@@ -23,12 +23,16 @@ enum class MoveFlag : uint8_t
 
 struct Move
 {
-    uint8_t from;       // source
-    uint8_t to;         // destination
-    uint8_t piece;      // moving piece code (color << 3 | piece_type)
-    uint8_t capture;    // captured piece code, or 0xFF if none
-    uint8_t promo;      // promotion piece_type (0 – 5), or 0xFF if none
-    uint8_t flags;      // extra bits: castling, en passant, etc.
+    static constexpr char pchar[6] = { 'q', 'r', 'b', 'n', 'p', 'k' };
+
+    uint8_t from;
+    uint8_t to;
+    uint8_t piece; // moving piece code (color << 3 | piece_type)
+    uint8_t capture; // 0xFF if none
+    uint8_t promo; // 0xFF if none
+    uint8_t flags;
+
+    std::string uci() const;
 };
 
 enum class Color : int { White = 0, Black };
@@ -61,6 +65,12 @@ public:
     void make_move(const Move& m);
     void unmake_move();
 
+    // getting peudo-legal moves
+    std::vector<Move> generate_pseudo() const;
+
+    // getting moves
+    std::vector<Move> generate_moves();
+
     // get a bitboard
     inline uint64_t pieces(Color c, PieceType pt) const { return pieces_bb[as_int(c)][as_int(pt)]; }
     inline uint64_t occupancy(Color c) const { return color_bb[as_int(c)]; };
@@ -78,6 +88,8 @@ public:
 
     // print the board
     void print(std::ostream& os = std::cout) const;
+
+    Move from_uci(const std::string& uci) const;
 
 private:
     // for unmaking moves
@@ -139,6 +151,103 @@ private:
     // get the enumeration type
     inline Color as_color(int c) const { return static_cast<Color>(c); }
     inline PieceType as_piece_type(int pt) const { return static_cast<PieceType>(pt); }
+
+    // quiet move helper
+    inline Move make_pawn_move(int from, int to, int color, PieceType pt, uint8_t flags) const
+    {
+        Move m;
+
+        m.from = static_cast<uint8_t>(from);
+        m.to = static_cast<uint8_t>(to);
+        m.piece = static_cast<uint8_t>((color << 3) | int(pt));
+        m.flags = flags;
+        m.promo = (flags & static_cast<uint8_t>(MoveFlag::Promotion)) ? static_cast<uint8_t>(pt) : static_cast<uint8_t>(0xFF);
+        m.capture = static_cast<uint8_t>(0xFF);
+
+        return m;
+    }
+
+    // capture helper
+    inline Move make_pawn_capture(int from, int to, int color, PieceType pt, uint8_t flags) const
+    {
+        Move m = make_pawn_move(from, to, color, pt, flags);
+
+        m.capture = static_cast<uint8_t>(mailbox[to]);
+
+        return m;
+    }
+
+    // en passant helper
+    inline Move make_pawn_ep(int from, int to, int color) const
+    {
+        Move m;
+
+        m.from = static_cast<uint8_t>(from);
+        m.to = static_cast<uint8_t>(to);
+        m.piece = static_cast<uint8_t>((color << 3) | int(PieceType::Pawn));
+        m.flags = static_cast<uint8_t>(MoveFlag::EnPassant);
+        m.promo = static_cast<uint8_t>(0xFF);
+        int capSq = to + (color == 0 ? -8 : +8);
+        m.capture = static_cast<uint8_t>(mailbox[capSq]);
+        
+        return m;
+    }
+
+    // normal move helper
+    inline Move make_piece_move(int from, int to, int color, PieceType pt, uint8_t flags = static_cast<uint8_t>(MoveFlag::Quiet), uint8_t capture = 0xFF) const
+    {
+        Move m;
+
+        m.from = static_cast<uint8_t>(from);
+        m.to = static_cast<uint8_t>(to);
+        m.piece = static_cast<uint8_t>((color << 3) | as_int(pt));
+        m.flags = flags;
+        m.capture = capture;
+        m.promo = 0xFF;
+
+        return m;
+    }
+
+    // castling helper
+    inline Move make_castle_move(uint8_t flags) const
+    {
+        Move m;
+
+        m.flags = flags;
+        m.capture = 0xFF;
+        m.promo = 0xFF;
+
+        if(flags == static_cast<uint8_t>(MoveFlag::KingCastle))
+        {
+            if(side_to_move == Color::White)
+            {
+                m.from = 4;
+                m.to = 6;
+            } else
+            {
+                m.from = 60;
+                m.to = 62;
+            }
+        } else
+        {
+            if(side_to_move == Color::White)
+            {
+                m.from = 4;
+                m.to = 2;
+            } else
+            {
+                m.from = 60;
+                m.to = 58;
+            }
+        }
+        
+        m.piece = static_cast<uint8_t>((as_int(side_to_move) << 3) | as_int(PieceType::King));
+        
+        return m;
+    }
+
+    // helper
+    bool is_attacked(int sq, Color by) const;
 
     // allow for initialization of Zobrist hashing arrays
     friend struct ZobristInit;
