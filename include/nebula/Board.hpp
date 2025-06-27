@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <iostream>
 
 namespace nebula
 {
@@ -24,17 +25,20 @@ public:
     static constexpr int castle_k = 1 << 2;
     static constexpr int castle_q = 1 << 3;
 
-    // constructors
-    Board();
-    explicit Board(const std::string& fen);
+    static constexpr const char* piece_unicode[2][6] = {
+            { u8"♙", u8"♘", u8"♗", u8"♖", u8"♕", u8"♔" },
+            { u8"♟", u8"♞", u8"♝", u8"♜", u8"♛", u8"♚" } };
+
+    // constructor
+    explicit Board(const std::string& fen = std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
 
     // get a bitboard
-    uint64_t pieces(Color c, PieceType pt) const;
-    uint64_t occupancy(Color c) const;
-    uint64_t occupancy() const;
+    inline uint64_t pieces(Color c, PieceType pt) const { return pieces_bb[as_int(c)][as_int(pt)]; }
+    inline uint64_t occupancy(Color c) const { return color_bb[as_int(c)]; };
+    inline uint64_t occupancy() const { return all_pieces_bb; };
 
-    // returns -1 if empty, otherwise returns (color * num_piece_types + pieceType)
-    int piece_at(int sq) const;
+    // returns -1 if empty, otherwise returns (color << 3) | piece_type
+    inline int piece_at(int sq) const { return (unsigned) sq < 64 ? mailbox[sq] : -1; };
 
     // modifiers
     void set_piece(int sq, Color c, PieceType pt);
@@ -42,6 +46,9 @@ public:
 
     // for Zobrist hashing
     inline uint64_t key() const { return zobrist_key; }
+
+    // print the board
+    void print(std::ostream& os = std::cout) const;
 
 private:
     // bitboards
@@ -55,6 +62,9 @@ private:
     int en_passant_square;
     int half_moves;
     int full_move;
+
+    // all the pieces
+    std::array<int, 64> mailbox;
     
     // for Zobrist hashing
     uint64_t zobrist_key;

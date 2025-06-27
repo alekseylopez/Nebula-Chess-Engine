@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <cctype>
+#include <ostream>
 
 namespace nebula
 {
@@ -38,9 +39,6 @@ struct ZobristInit
     }
 } _zInit;
 
-Board::Board():
-    Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {}
-
 Board::Board(const std::string& fen):
     pieces_bb{{{0ULL}}},
     color_bb{{0ULL}},
@@ -50,8 +48,12 @@ Board::Board(const std::string& fen):
     en_passant_square{-1},
     half_moves{0},
     full_move{1},
+    mailbox{},
     zobrist_key{0ULL}
 {
+    // reset mailbox
+    mailbox.fill(-1);
+
     // split up the string
     std::istringstream iss(fen);
     std::string board, active, castle, ep, halfm, fullm;
@@ -120,45 +122,6 @@ Board::Board(const std::string& fen):
     full_move = std::stoi(fullm);
 }
 
-uint64_t Board::pieces(Color c, PieceType pt) const
-{
-    return pieces_bb[as_int(c)][as_int(pt)];
-}
-
-uint64_t Board::occupancy(Color c) const
-{
-    return color_bb[as_int(c)];
-}
-
-uint64_t Board::occupancy() const
-{
-    return all_pieces_bb;
-}
-
-int Board::piece_at(int sq) const
-{
-    // if invalid return -1
-    if(sq < 0 || sq >= 64)
-        return -1;
-
-    // translate square number to mask
-    const uint64_t mask = 1ULL << sq;
-
-    // if empty return -1
-    if(!(all_pieces_bb & mask))
-        return -1;
-    
-    // find what the piece is
-    for(int c = 0; c < num_colors; ++c)
-        if(color_bb[c] & mask)
-            for(int pt = 0; pt < num_piece_types; ++pt)
-                if(pieces_bb[c][pt] & mask)
-                    return c * num_piece_types + pt;
-    
-    // should never get here
-    return -1;
-}
-
 void Board::set_piece(int sq, Color c, PieceType pt)
 {
     // if invalid return
@@ -171,10 +134,13 @@ void Board::set_piece(int sq, Color c, PieceType pt)
     // translate square number to mask
     const uint64_t mask = 1ULL << sq;
 
-    // place the piece;
+    // place the piece
     pieces_bb[as_int(c)][as_int(pt)] |= mask;
     color_bb[as_int(c)] |= mask;
     all_pieces_bb |= mask;
+
+    // place in mailbox
+    mailbox[sq] = (as_int(c) << 3) | as_int(pt);
 
     // update Zobrist key
     update_zobrist_piece(sq, c, pt);
@@ -197,20 +163,104 @@ void Board::remove_piece(int sq)
     const uint64_t mask = 1ULL << sq;
 
     // get type and color of piece
-    int c = piece / num_piece_types;
-    int pt = piece % num_piece_types;
+    int c = piece >> 3;
+    int pt = piece & 0b111;
 
     // remove that piece
     pieces_bb[c][pt] &= ~mask;
     color_bb[c] &= ~mask;
     all_pieces_bb &= ~mask;
 
+    // place in mailbox
+    mailbox[sq] = -1;
+
     // update Zobrist key
     update_zobrist_piece(sq, as_color(c), as_piece_type(pt));
 }
 
+void Board::print(std::ostream& os) const
+{
+    // print the board
+    os << "\n  +---+---+---+---+---+---+---+---+\n";
+
+    for(int rank = 7; rank >= 0; --rank)
+    {
+        os << char('1' + rank) << ' ';
+
+        for(int file = 0; file < 8; ++file)
+        {
+            int sq = rank * 8 + file;
+            int code = mailbox[sq];
+
+            if(code < 0)
+            {
+                os << "|   ";
+            } else
+            {
+                int c = code >> 3;
+                int pt = code & 0b111;
+                os <<  "| " << piece_unicode[c][pt] << ' ';
+            }
+        }
+
+        os << "|\n  +---+---+---+---+---+---+---+---+\n";
+    }
+
+    os << "    a   b   c   d   e   f   g   h\n\n";
+
+    // side to move
+    os << "Side to move: " << (side_to_move == Color::White ? 'w' : 'b') << '\n';
+
+    // castling rights
+    os << "Castling: ";
+    bool any = false;
+    if(castling_rights & castle_K)
+    {
+        os << 'K';
+        any = true;
+    }
+    if(castling_rights & castle_Q)
+    {
+        os << 'Q';
+        any = true;
+    }
+    if(castling_rights & castle_k)
+    {
+        os << 'k';
+        any = true;
+    }
+    if(castling_rights & castle_q)
+    {
+        os << 'q';
+        any = true;
+    }
+    if(!any)
+        os << '-';
+    os << '\n';
+
+    // en passant
+    os << "En-passant: ";
+    if(en_passant_square >= 0)
+    {
+        char file_c = char('a' + (en_passant_square & 7));
+        char rank_c = char('1' + (en_passant_square >> 3));
+        os << file_c << rank_c;
+    } else
+    {
+        os << '-';
+    }
+    os << '\n';
+
+    // halfmove and fullmove clocks
+    os << "Halfmoves: " + std::to_string(half_moves) + '\n';
+    os << "Fullmoves: " + std::to_string(full_move) + '\n';
+
+    os << '\n';
+}
+
 int Board::piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const
 {
+    // determine piece color
     if(std::isupper(static_cast<unsigned char>(c)))
         out_c = Color::White;
     else if(std::islower(static_cast<unsigned char>(c)))
@@ -218,8 +268,10 @@ int Board::piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const
     else
         return -1;
 
+    // standardize
     char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
+    // determine type
     switch(lower)
     {
         case 'p':
@@ -250,6 +302,7 @@ int Board::piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const
             return -1;
     }
 
+    // successful
     return 0;
 }
 
