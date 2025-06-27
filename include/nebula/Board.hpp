@@ -5,9 +5,31 @@
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include <vector>
 
 namespace nebula
 {
+
+enum class MoveFlag : uint8_t
+{
+    Quiet = 0,
+    Capture = 1 << 0,
+    DoublePawnPush = 1 << 1,
+    EnPassant = 1 << 2,
+    KingCastle = 1 << 3,
+    QueenCastle = 1 << 4,
+    Promotion = 1 << 5,
+};
+
+struct Move
+{
+    uint8_t from;       // source
+    uint8_t to;         // destination
+    uint8_t piece;      // moving piece code (color << 3 | piece_type)
+    uint8_t capture;    // captured piece code, or 0xFF if none
+    uint8_t promo;      // promotion piece_type (0 – 5), or 0xFF if none
+    uint8_t flags;      // extra bits: castling, en passant, etc.
+};
 
 enum class Color : int { White = 0, Black };
 enum class PieceType : int { Pawn = 0, Knight, Bishop, Rook, Queen, King };
@@ -25,19 +47,26 @@ public:
     static constexpr int castle_k = 1 << 2;
     static constexpr int castle_q = 1 << 3;
 
-    static constexpr const char* piece_unicode[2][6] = {
-            { u8"♙", u8"♘", u8"♗", u8"♖", u8"♕", u8"♔" },
-            { u8"♟", u8"♞", u8"♝", u8"♜", u8"♛", u8"♚" } };
+    // unicode pieces
+    static constexpr const char* piece_unicode[2][6] =
+    {
+        { u8"♙", u8"♘", u8"♗", u8"♖", u8"♕", u8"♔" },
+        { u8"♟", u8"♞", u8"♝", u8"♜", u8"♛", u8"♚" }
+    };
 
     // constructor
     explicit Board(const std::string& fen = std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+
+    // making moves
+    void make_move(const Move& m);
+    void unmake_move();
 
     // get a bitboard
     inline uint64_t pieces(Color c, PieceType pt) const { return pieces_bb[as_int(c)][as_int(pt)]; }
     inline uint64_t occupancy(Color c) const { return color_bb[as_int(c)]; };
     inline uint64_t occupancy() const { return all_pieces_bb; };
 
-    // returns -1 if empty, otherwise returns (color << 3) | piece_type
+    // returns -1 if empty, otherwise returns (color << 3 | piece_type)
     inline int piece_at(int sq) const { return (unsigned) sq < 64 ? mailbox[sq] : -1; };
 
     // modifiers
@@ -51,6 +80,21 @@ public:
     void print(std::ostream& os = std::cout) const;
 
 private:
+    // for unmaking moves
+    struct Undo
+    {
+        Move move;
+        Color prev_side_to_move;
+        int prev_castling_rights;
+        int prev_en_passant;
+        int prev_half_moves;
+        int prev_full_move;
+        uint64_t prev_zobrist_key;
+    };
+
+    // history of moves
+    std::vector<Undo> history;
+
     // bitboards
     std::array<std::array<uint64_t, num_piece_types>, num_colors> pieces_bb;
     std::array<uint64_t, num_colors> color_bb;
@@ -88,6 +132,7 @@ private:
     int piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const;
 
     // get the integer behind the enumeration
+    inline int as_int(MoveFlag mf) const { return static_cast<int>(mf); }
     inline int as_int(Color c) const { return static_cast<int>(c); }
     inline int as_int(PieceType pt) const { return static_cast<int>(pt); }
 
