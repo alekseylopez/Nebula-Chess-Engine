@@ -548,15 +548,6 @@ std::vector<Move> Board::generate_moves()
         
         unmake_move();
     }
-    /*for(const auto& move : pseudo)
-    {
-        Board copy = *this;
-
-        copy.make_move(move);
-
-        if(!copy.is_attacked(__builtin_ctzll(copy.pieces_bb[as_int(us)][as_int(PieceType::King)]), foe))
-            legal.push_back(move);
-    }*/
 
     return legal;
 }
