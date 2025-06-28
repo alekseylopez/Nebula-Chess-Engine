@@ -87,8 +87,33 @@ struct Values
 
 enum class SearchResult { KeepGoing, Stalemate, Checkmate };
 
+// is move a capture
+inline bool is_capture(const Move& m)
+{
+    return m.flags & static_cast<uint8_t>(MoveFlag::Capture);
+}
+
+// is move a promotion
+inline bool is_promotion(const Move& m)
+{
+    return m.flags & static_cast<uint8_t>(MoveFlag::Promotion);
+}
+
+// is move a check
+inline bool gives_check(Board& board, const Move& m)
+{
+    board.make_move(m);
+    Color foe = board.turn();
+    int king_sq = __builtin_ctzll(board.pieces(foe, PieceType::King));
+    bool check = board.is_attacked(king_sq, foe == Color::White ? Color::Black : Color::White);
+    board.unmake_move();
+    return check;
+}
+
 // static evaluation: white +, black -
 double evaluate(const Board& board);
+
+void order_moves(std::vector<Move>& moves, Board& board);
 
 // mutable Board because of make_move/unmake_move
 // returns score from white's perspective

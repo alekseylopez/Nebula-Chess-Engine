@@ -7,6 +7,8 @@
 #include <cctype>
 #include <ostream>
 
+// TODO: bug with some positions ./nebula 5 1 "r2qkb1r/ppp2ppp/2n2n2/2Pp4/PP4b1/R5p1/3PP2P/1NBQKBNR w Kkq - 0 8"
+
 namespace nebula
 {
 

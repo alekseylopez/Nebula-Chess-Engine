@@ -37,6 +37,37 @@ double evaluate(const Board& board)
     return material;
 }
 
+void order_moves(std::vector<Move>& moves, Board& board)
+{
+    // score moves
+    std::vector<std::pair<int, Move>> scored;
+    scored.reserve(moves.size());
+
+    for(auto& m : moves)
+    {
+        int score = 0;
+
+        if(is_capture(m))
+            score += 1000 + (m.capture != 0xFF ? m.capture & 0b111 : 0); // prefer capturing higher value
+        if(is_promotion(m))
+            score += 100; // promotions are important
+        if(gives_check(board, m))
+            score += 10; // checks are good
+
+        scored.emplace_back(score, m);
+    }
+
+    std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b)
+    {
+        // high scores first
+        return a.first > b.first;
+    });
+
+    // Write back
+    for(size_t i = 0; i < moves.size(); ++i)
+        moves[i] = scored[i].second;
+}
+
 double negamax(Board& board, int max_depth)
 {
     constexpr double inf = 1e9;
@@ -84,7 +115,10 @@ double negamax(Board& board, int max_depth)
 
         // generate moves
         if(frame.moves.empty())
+        {
             frame.moves = board.generate_moves();
+            order_moves(frame.moves, board);
+        }
 
         // terminal node
         if(frame.moves.empty())
@@ -194,6 +228,7 @@ double search_root(Board& board, int max_depth, Move& out_best, SearchResult& re
     constexpr double inf = 1e9;
 
     auto moves = board.generate_moves();
+    order_moves(moves, board);
 
     if(moves.empty())
     {
