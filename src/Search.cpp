@@ -82,11 +82,7 @@ struct Frame
     bool null_move_allowed;
     bool pv_node;
     bool in_check;
-    
-    // State tracking
     Phase phase;
-    
-    // For PVS re-search
     bool needs_research;
     double research_score;
 };
@@ -98,8 +94,9 @@ struct QFrame
     double stand_pat;
     size_t move_index;
     std::vector<Move> moves;
-    size_t index;
+    int depth;
     bool stand_pat_done;
+    bool generated_moves;
 };
 
 double evaluate(Board& board)
@@ -164,7 +161,7 @@ void order_moves(std::vector<Move>& moves, Board& board)
 
 double quiesce(Board& board, double alpha, double beta)
 {
-    constexpr int max_quiesce_depth = 8;
+    constexpr int max_quiesce_depth = 6; // Reduced from 8
     constexpr double delta_margin = 9.0;
 
     std::vector<QFrame> stack;
@@ -178,6 +175,7 @@ double quiesce(Board& board, double alpha, double beta)
         0,
         {},
         0,
+        false,
         false
     });
 
@@ -187,41 +185,41 @@ double quiesce(Board& board, double alpha, double beta)
     {
         QFrame& frame = stack.back();
 
-        // start of each frame
+        // safety check
+        if(frame.depth >= max_quiesce_depth)
+        {
+            ret = evaluate(board);
+
+            stack.pop_back();
+            
+            if(!stack.empty())
+            {
+                QFrame& prev = stack.back();
+
+                double value = -ret;
+                if(value > prev.best)
+                    prev.best = value;
+                if(prev.best > prev.alpha)
+                    prev.alpha = prev.best;
+                
+                board.unmake_move();
+
+                ++prev.move_index;
+            }
+
+            continue;
+        }
+
+        // Initialize frame on first entry
         if(!frame.stand_pat_done)
         {
             frame.stand_pat_done = true;
             frame.stand_pat = evaluate(board);
 
-            // too deep
-            if(frame.index >= max_quiesce_depth)
-            {
-                ret = frame.stand_pat;
-
-                stack.pop_back();
-                
-                if(!stack.empty())
-                {
-                    QFrame& prev = stack.back();
-
-                    double value = -ret;
-                    if(value > prev.best)
-                        prev.best = value;
-                    if (prev.best > prev.alpha)
-                        prev.alpha = prev.best;
-                    
-                    board.unmake_move();
-
-                    ++prev.move_index;
-                }
-
-                continue;
-            }
-
+            // Beta cutoff
             if(frame.stand_pat >= frame.beta)
             {
                 ret = frame.beta;
-                
                 stack.pop_back();
 
                 if(!stack.empty())
@@ -235,16 +233,15 @@ double quiesce(Board& board, double alpha, double beta)
                         prev.alpha = prev.best;
 
                     board.unmake_move();
-                    
-                    ++prev.index;
+
+                    ++prev.move_index;
                 }
 
                 continue;
             }
 
             // delta pruning
-            double dynamic_delta = delta_margin - (frame.index * 0.5);
-            if(frame.stand_pat + dynamic_delta < frame.alpha)
+            if(frame.stand_pat + delta_margin < frame.alpha)
             {
                 ret = frame.alpha;
 
@@ -255,9 +252,9 @@ double quiesce(Board& board, double alpha, double beta)
                     QFrame& prev = stack.back();
 
                     double value = -ret;
-                    if (value > prev.best)
+                    if(value > prev.best)
                         prev.best = value;
-                    if (prev.best > prev.alpha)
+                    if(prev.best > prev.alpha)
                         prev.alpha = prev.best;
 
                     board.unmake_move();
@@ -274,22 +271,25 @@ double quiesce(Board& board, double alpha, double beta)
             frame.best = frame.alpha;
         }
 
-        // first entry
-        if(frame.moves.empty())
+        // generate moves once
+        if(!frame.generated_moves)
         {
-            auto moves = board.generate_moves();
-            for(const auto& m : moves)
+            frame.generated_moves = true;
+
+            auto all_moves = board.generate_moves();
+            
+            // only include captures and promotions
+            for(const auto& m : all_moves)
                 if(is_capture(m) || is_promotion(m))
                     frame.moves.push_back(m);
 
             order_moves(frame.moves, board);
         }
 
-        // return best if nothing left
-        if(frame.index >= frame.moves.size())
+        // check if we're done with moves
+        if(frame.move_index >= frame.moves.size())
         {
             ret = frame.best;
-
             stack.pop_back();
 
             if(!stack.empty())
@@ -304,7 +304,7 @@ double quiesce(Board& board, double alpha, double beta)
 
                 board.unmake_move();
 
-                ++prev.index;
+                ++prev.move_index;
             }
 
             continue;
@@ -314,7 +314,6 @@ double quiesce(Board& board, double alpha, double beta)
         if(frame.best >= frame.beta)
         {
             ret = frame.best;
-
             stack.pop_back();
 
             if(!stack.empty())
@@ -329,26 +328,27 @@ double quiesce(Board& board, double alpha, double beta)
 
                 board.unmake_move();
 
-                ++prev.index;
+                ++prev.move_index;
             }
 
             continue;
         }
 
-        board.make_move(frame.moves[frame.index]);
+        const Move& current_move = frame.moves[frame.move_index];
+        board.make_move(current_move);
 
         stack.push_back(
         {
-            -frame.beta, -std::max(frame.alpha, frame.best),
+            -frame.beta, 
+            -std::max(frame.alpha, frame.best),
             -1e9,
             -1e9,
             0,
             {},
-            frame.index + 1,
+            frame.depth + 1,
+            false,
             false
         });
-
-        continue;
     }
 
     return ret;
