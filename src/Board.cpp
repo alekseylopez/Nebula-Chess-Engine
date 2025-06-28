@@ -225,7 +225,7 @@ void Board::make_move(const Move& move)
 
       remove_piece(rfrom);
       set_piece(rto, side_to_move, PieceType::Rook);
-    } else if (move.flags & as_int(MoveFlag::QueenCastle))
+    } else if(move.flags & as_int(MoveFlag::QueenCastle))
     {
       int rfrom = (side_to_move==Color::White ? 0 : 56);
       int rto = (side_to_move==Color::White ? 3 : 59);
@@ -318,7 +318,7 @@ void Board::unmake_move()
         add_sq(move.from, move.piece);
         int capSq = move.to + ((decode_color(move.piece) == 0) ? -8 : 8);
         add_sq(capSq, move.capture);
-    } else if (move.flags & as_int(MoveFlag::Capture))
+    } else if(move.flags & as_int(MoveFlag::Capture))
     {
         // handle captures
         add_sq(move.from, move.piece);
@@ -553,7 +553,7 @@ std::vector<Move> Board::generate_pseudo() const
     }
 
     // castling
-    if (color == as_int(Color::White))
+    if(color == as_int(Color::White))
     {
         if((castling_rights & castle_K) && !(all_pieces_bb & ((1ULL << 5) | (1ULL << 6))) && !is_attacked(4, Color::Black) && !is_attacked(5, Color::Black) && !is_attacked(6, Color::Black))
             out.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::KingCastle)));
@@ -597,27 +597,28 @@ std::vector<Move> Board::generate_moves()
 
 bool Board::is_attacked(int sq, Color by) const
 {
-    uint64_t occ = all_pieces_bb;
-    int c = as_int(by);
+    if(sq < 0 || sq >= 64)
+        return false;
+
+    const uint64_t target = 1ULL << sq;
+    const uint64_t occ = all_pieces_bb;
+    const int c = as_int(by);
+
+    // preventing wrap-around
+    static constexpr uint64_t not_file_a = ~0x0101010101010101ULL;
+    static constexpr uint64_t not_file_h = ~0x8080808080808080ULL;
 
     // pawn attacks
-    constexpr uint64_t file_a = 0x0101010101010101ULL;
-    constexpr uint64_t file_h = 0x8080808080808080ULL;
-    if(by == Color::White)
-    {
-        uint64_t wp = pieces_bb[c][as_int(PieceType::Pawn)];
-        uint64_t attacks = ((wp << 7) & ~file_h) | ((wp << 9) & ~file_a);
+    uint64_t pawns = pieces_bb[c][as_int(PieceType::Pawn)];
+    uint64_t attacks = 0ULL;
 
-        if(attacks & (1ULL << sq))
-            return true;
-    } else
-    {
-        uint64_t bp = pieces_bb[c][as_int(PieceType::Pawn)];
-        uint64_t attacks = ((bp >> 9) & ~file_h) | ((bp >> 7) & ~file_a);
+    if (by == Color::White)
+        attacks = ((pawns << 7) & not_file_h) | ((pawns << 9) & not_file_a);
+    else
+        attacks = ((pawns >> 9) & not_file_h) | ((pawns >> 7) & not_file_a);
 
-        if(attacks & (1ULL << sq))
-            return true;
-    }
+    if(attacks & target)
+        return true;
 
     // knight attacks
     if (AttackTables::knight[sq] & pieces_bb[c][as_int(PieceType::Knight)])
@@ -626,46 +627,58 @@ bool Board::is_attacked(int sq, Color by) const
     // king attacks
     if (AttackTables::king[sq] & pieces_bb[c][as_int(PieceType::King)])
         return true;
+    
+    int f0 = sq & 7, r0 = sq >> 3;
 
-    // rook-like sliding
+    // rook-like sliding attacks
     for(auto [df, dr] : AttackTables::rook_dirs)
     {
-        int f = (sq & 0b111) + df;
-        int r = (sq >> 3) + dr;
+        int f = f0 + df, r = r0 + dr;
         while(f >= 0 && f < 8 && r >= 0 && r < 8)
         {
-            int t = (r << 3) + f;
-            if((occ >> t) & 1)
+            int t = (r << 3) | f;
+            uint64_t m = 1ULL << t;
+
+            // hit a piece
+            if(occ & m)
             {
                 int code = mailbox[t];
+
                 int col = decode_color(code), pc = decode_piece(code);
+
                 if(col == c && (pc == as_int(PieceType::Rook) || pc == as_int(PieceType::Queen)))
                     return true;
+
                 break;
             }
-            f += df;
-            r += dr;
+
+            f += df; r += dr;
         }
     }
 
-    // bishop‐like sliding
+    // bishop-like sliding attacks
     for(auto [df, dr] : AttackTables::bishop_dirs)
     {
-        int f = (sq & 0b111) + df;
-        int r = (sq >> 3) + dr;
+        int f = f0 + df, r = r0 + dr;
         while(f >= 0 && f < 8 && r >= 0 && r < 8)
         {
-            int t = (r << 3) + f;
-            if((occ >> t) & 1)
+            int t = (r << 3) | f;
+            uint64_t m = 1ULL << t;
+
+            // hit a piece
+            if(occ & m)
             {
                 int code = mailbox[t];
+
                 int col = decode_color(code), pc = decode_piece(code);
+
                 if(col == c && (pc == as_int(PieceType::Bishop) || pc == as_int(PieceType::Queen)))
                     return true;
+
                 break;
             }
-            f += df;
-            r += dr;
+
+            f += df; r += dr;
         }
     }
 
@@ -832,7 +845,7 @@ Move Board::from_uci(const std::string& uci) const
     {
         char f = uci[i], r = uci[i + 1];
 
-        if (f < 'a' || f > 'h' || r < '1' || r > '8')
+        if(f < 'a' || f > 'h' || r < '1' || r > '8')
             throw std::invalid_argument("bad square");
 
         return (r - '1') * 8 + (f - 'a');
@@ -842,7 +855,8 @@ Move Board::from_uci(const std::string& uci) const
 
     // figure out which piece is moving
     int pc = piece_at(from);
-    if (pc < 0) throw std::invalid_argument("no piece on from-square");
+    if(pc < 0)
+        throw std::invalid_argument("no piece on from-square");
 
     Move m;
     m.from = from;

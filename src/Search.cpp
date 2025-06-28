@@ -115,7 +115,7 @@ double evaluate(Board& board)
         int pt = code & 0b111;
 
         double mat = Values::material_value[pt];
-        double pst = Values::pst[pt][sq];
+        double pst = Values::pst[pt][color == 0 ? sq : sq ^ 56]; // from perspective of the right side
         double val = mat + pst;
 
         material += (color == 0 ? val : -val);
@@ -408,12 +408,13 @@ double negamax(Board& board, int max_depth)
                         if(value > prev.best)
                         {
                             prev.best = value;
-                            prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                            if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                prev.best_move = prev.moves[prev.index];
                         }
                         if(prev.best > prev.alpha)
                             prev.alpha = prev.best;
                         
-                        board.unmake_move();
+                        //board.unmake_move();
 
                         ++prev.index;
                         prev.phase = Phase::SearchMoves;
@@ -442,14 +443,16 @@ double negamax(Board& board, int max_depth)
                         Frame& prev = stack.back();
 
                         double value = -ret;
-                        if (value > prev.best)
+                        if(value > prev.best)
                         {
                             prev.best = value;
-                            prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                            if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                prev.best_move = prev.moves[prev.index];
                         }
                         if(prev.best > prev.alpha)
                             prev.alpha = prev.best;
-                        board.unmake_move();
+
+                        //board.unmake_move();
 
                         ++prev.index;
                         prev.phase = Phase::SearchMoves;
@@ -503,7 +506,7 @@ double negamax(Board& board, int max_depth)
 
             case Phase::MoveGen:
             {
-                if (frame.null_move_done)
+                if(frame.null_move_done)
                 {
                     board.unmake_null_move();
                     
@@ -518,15 +521,16 @@ double negamax(Board& board, int max_depth)
                             Frame& prev = stack.back();
 
                             double value = -ret;
-                            if (value > prev.best)
+                            if(value > prev.best)
                             {
                                 prev.best = value;
-                                prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                                if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                    prev.best_move = prev.moves[prev.index];
                             }
-                            if (prev.best > prev.alpha)
+                            if(prev.best > prev.alpha)
                                 prev.alpha = prev.best;
 
-                            board.unmake_move();
+                            //board.unmake_move();
 
                             ++prev.index;
                             prev.phase = Phase::SearchMoves;
@@ -545,7 +549,17 @@ double negamax(Board& board, int max_depth)
                 if(frame.moves.empty())
                 {
                     Color us = board.turn();
-                    int king_sq = __builtin_ctzll(board.pieces(us, PieceType::King));
+                    
+                    uint64_t king_bb = board.pieces(us, PieceType::King);
+                    if(king_bb == 0) // should not happen
+                    {
+                        ret = -mate_score; // treat as mate
+
+                        stack.pop_back();
+
+                        continue;
+                    }
+                    int king_sq = __builtin_ctzll(king_bb);
                     
                     if(board.is_attacked(king_sq, us == Color::White ? Color::Black : Color::White))
                         ret = -mate_score + (max_depth - frame.depth); // checkmate
@@ -554,20 +568,21 @@ double negamax(Board& board, int max_depth)
 
                     stack.pop_back();
                     
-                    if (!stack.empty())
+                    if(!stack.empty())
                     {
                         Frame& prev = stack.back();
 
                         double value = -ret;
-                        if (value > prev.best)
+                        if(value > prev.best)
                         {
                             prev.best = value;
-                            prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                            if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                prev.best_move = prev.moves[prev.index];
                         }
-                        if (prev.best > prev.alpha)
+                        if(prev.best > prev.alpha)
                             prev.alpha = prev.best;
 
-                        board.unmake_move();
+                        //board.unmake_move();
 
                         ++prev.index;
                         prev.phase = Phase::SearchMoves;
@@ -600,15 +615,16 @@ double negamax(Board& board, int max_depth)
                         Frame& prev = stack.back();
 
                         double value = -ret;
-                        if (value > prev.best)
+                        if(value > prev.best)
                         {
                             prev.best = value;
-                            prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                            if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                prev.best_move = prev.moves[prev.index];
                         }
                         if(prev.best > prev.alpha)
                             prev.alpha = prev.best;
 
-                        board.unmake_move();
+                        //board.unmake_move();
 
                         ++prev.index;
                     }
@@ -634,12 +650,13 @@ double negamax(Board& board, int max_depth)
                         if(value > prev.best)
                         {
                             prev.best = value;
-                            prev.best_move = prev.moves.empty() ? Move{} : prev.moves[prev.index];
+                            if(!prev.moves.empty() && prev.index < prev.moves.size())
+                                prev.best_move = prev.moves[prev.index];
                         }
                         if(prev.best > prev.alpha)
                             prev.alpha = prev.best;
 
-                        board.unmake_move();
+                        //board.unmake_move();
 
                         ++prev.index;
                     }
@@ -654,7 +671,7 @@ double negamax(Board& board, int max_depth)
                 // principal variation search
                 if(frame.index == 0 || !frame.pv_node)
                 {
-                    // First move or non-PV node: full window search
+                    // first move or non-PV node: full window search
                     stack.push_back(
                     {
                         frame.depth - 1,
