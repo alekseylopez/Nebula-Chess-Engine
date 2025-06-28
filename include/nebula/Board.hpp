@@ -79,6 +79,12 @@ public:
     // returns -1 if empty, otherwise returns (color << 3 | piece_type)
     inline int piece_at(int sq) const { return (unsigned) sq < 64 ? mailbox[sq] : -1; };
 
+    // returns side to move
+    inline Color turn() const { return side_to_move; }
+
+    // helper
+    bool is_attacked(int sq, Color by) const;
+
     // modifiers
     void set_piece(int sq, Color c, PieceType pt);
     void remove_piece(int sq);
@@ -245,9 +251,6 @@ private:
         
         return m;
     }
-
-    // helper
-    bool is_attacked(int sq, Color by) const;
 
     // allow for initialization of Zobrist hashing arrays
     friend struct ZobristInit;
