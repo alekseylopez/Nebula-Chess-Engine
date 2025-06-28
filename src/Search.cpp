@@ -12,6 +12,15 @@ struct Frame
     std::vector<Move> moves;
 };
 
+struct QFrame
+{
+    double alpha, beta;
+    double best;
+    size_t index;
+    std::vector<Move> moves;
+    bool stand_pat_done;
+};
+
 double evaluate(const Board& board)
 {
     double material = 0;
@@ -68,6 +77,139 @@ void order_moves(std::vector<Move>& moves, Board& board)
         moves[i] = scored[i].second;
 }
 
+double quiesce(Board& board, double alpha, double beta)
+{
+    std::vector<QFrame> stack;
+    stack.push_back(
+    {
+        alpha, beta,
+        -1e9,
+        0,
+        {},
+        false
+    });
+
+    double ret = 0.0;
+
+    while(!stack.empty())
+    {
+        QFrame& frame = stack.back();
+
+        // start of each frame
+        if(!frame.stand_pat_done)
+        {
+            frame.stand_pat_done = true;
+
+            double stand_pat = evaluate(board);
+
+            if(stand_pat >= frame.beta)
+            {
+                ret = frame.beta;
+                
+                stack.pop_back();
+
+                if(!stack.empty())
+                {
+                    QFrame& prev = stack.back();
+
+                    double value = -ret;
+                    if(value > prev.best)
+                        prev.best = value;
+                    if(prev.best > prev.alpha)
+                        prev.alpha = prev.best;
+
+                    board.unmake_move();
+                    
+                    ++prev.index;
+                }
+
+                continue;
+            }
+
+            if(stand_pat > frame.alpha)
+                frame.alpha = stand_pat;
+            
+            frame.best = frame.alpha;
+        }
+
+        // first entry
+        if(frame.moves.empty())
+        {
+            auto moves = board.generate_moves();
+            for(const auto& m : moves)
+                if(is_capture(m) || is_promotion(m))
+                    frame.moves.push_back(m);
+
+            order_moves(frame.moves, board);
+        }
+
+        // return best if nothing left
+        if(frame.index >= frame.moves.size())
+        {
+            ret = frame.best;
+
+            stack.pop_back();
+
+            if(!stack.empty())
+            {
+                QFrame& prev = stack.back();
+
+                double value = -ret;
+                if(value > prev.best)
+                    prev.best = value;
+                if(prev.best > prev.alpha)
+                    prev.alpha = prev.best;
+
+                board.unmake_move();
+
+                ++prev.index;
+            }
+
+            continue;
+        }
+
+        // alpha-beta pruning
+        if(frame.best >= frame.beta)
+        {
+            ret = frame.best;
+
+            stack.pop_back();
+
+            if(!stack.empty())
+            {
+                QFrame& prev = stack.back();
+
+                double value = -ret;
+                if(value > prev.best)
+                    prev.best = value;
+                if(prev.best > prev.alpha)
+                    prev.alpha = prev.best;
+
+                board.unmake_move();
+
+                ++prev.index;
+            }
+
+            continue;
+        }
+
+        board.make_move(frame.moves[frame.index]);
+
+        stack.push_back(
+        {
+            -frame.beta, -std::max(frame.alpha, frame.best),
+            -1e9,
+            0,
+            {},
+            false
+        });
+
+        continue;
+    }
+
+    return ret;
+}
+
 double negamax(Board& board, int max_depth)
 {
     constexpr double inf = 1e9;
@@ -92,7 +234,7 @@ double negamax(Board& board, int max_depth)
         // leaf node
         if(frame.depth == 0)
         {
-            ret = evaluate(board);
+            ret = quiesce(board, frame.alpha, frame.beta);
 
             stack.pop_back();
 
@@ -110,6 +252,7 @@ double negamax(Board& board, int max_depth)
 
                 ++prev.index;
             }
+
             continue;
         }
 

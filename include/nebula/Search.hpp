@@ -113,7 +113,11 @@ inline bool gives_check(Board& board, const Move& m)
 // static evaluation: white +, black -
 double evaluate(const Board& board);
 
+// move ordering by importance
 void order_moves(std::vector<Move>& moves, Board& board);
+
+// quiescence search
+double quiesce(Board& board, double alpha, double beta);
 
 // mutable Board because of make_move/unmake_move
 // returns score from white's perspective
