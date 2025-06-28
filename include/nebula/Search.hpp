@@ -85,7 +85,40 @@ struct Values
     };
 };
 
+enum class Type { Exact, LowerBound, UpperBound };
+
+struct TTEntry
+{
+    uint64_t hash;
+    double score;
+    int depth;
+    int age;
+    Type type;
+    Move best_move;
+};
+
+class TranspositionTable
+{
+public:
+    TranspositionTable(size_t size_mb = 64);
+
+    inline void new_search() { ++current_age; }
+
+    bool probe(uint64_t hash, int depth, double alpha, double beta, double& score, Move& best_move);
+
+    void store(uint64_t hash, double score, int depth, Type type, Move best_move);
+
+private:
+    std::vector<TTEntry> table;
+    size_t size_mask;
+    int current_age;
+};
+
+// global transposition table
+static TranspositionTable tt;
+
 enum class SearchResult { KeepGoing, Stalemate, Checkmate };
+enum class Phase { Init, TTProbe, NullMove, MoveGen, SearchMoves, Cleanup };
 
 // is move a capture
 inline bool is_capture(const Move& m)
@@ -111,7 +144,7 @@ inline bool gives_check(Board& board, const Move& m)
 }
 
 // static evaluation: white +, black -
-double evaluate(const Board& board);
+double evaluate(Board& board);
 
 // move ordering by importance
 void order_moves(std::vector<Move>& moves, Board& board);

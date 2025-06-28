@@ -64,6 +64,10 @@ public:
     // making moves
     void make_move(const Move& m);
     void unmake_move();
+    
+    // null moves
+    void make_null_move();
+    void unmake_null_move();
 
     // getting peudo-legal moves
     std::vector<Move> generate_pseudo() const;
@@ -84,6 +88,9 @@ public:
 
     // helper
     bool is_attacked(int sq, Color by) const;
+
+    // is in check
+    bool in_check() const;
 
     // modifiers
     void set_piece(int sq, Color c, PieceType pt);
@@ -110,8 +117,19 @@ private:
         uint64_t prev_zobrist_key;
     };
 
+    // for unmaking null moves
+    struct NullUndo
+    {
+        Color prev_side_to_move;
+        int prev_en_passant;
+        uint64_t prev_zobrist_key;
+    };
+
     // history of moves
     std::vector<Undo> history;
+
+    // history of null moves
+    std::vector<NullUndo> null_history;
 
     // bitboards
     std::array<std::array<uint64_t, num_piece_types>, num_colors> pieces_bb;

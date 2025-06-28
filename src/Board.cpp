@@ -346,6 +346,39 @@ void Board::unmake_move()
     }
 }
 
+void Board::make_null_move()
+{
+    // save current state for unmake
+    null_history.push_back(
+    {
+        side_to_move,
+        en_passant_square,
+        zobrist_key
+    });
+
+    // clear en passant square
+    update_zobrist_enpassant(en_passant_square, -1);
+    en_passant_square = -1;
+
+    // switch sides
+    update_zobrist_side();
+    side_to_move = (side_to_move == Color::White ? Color::Black : Color::White);
+}
+
+void Board::unmake_null_move()
+{
+    if(null_history.empty())
+        return;
+
+    NullUndo u = null_history.back();
+    null_history.pop_back();
+
+    // restore previous state
+    side_to_move = u.prev_side_to_move;
+    en_passant_square = u.prev_en_passant;
+    zobrist_key = u.prev_zobrist_key;
+}
+
 std::vector<Move> Board::generate_pseudo() const
 {
     std::vector<Move> out;
@@ -637,6 +670,21 @@ bool Board::is_attacked(int sq, Color by) const
     }
 
     return false;
+}
+
+bool Board::in_check() const
+{
+    Color us = side_to_move;
+    Color foe = (us == Color::White ? Color::Black : Color::White);
+    
+    uint64_t king_bb = pieces_bb[as_int(us)][as_int(PieceType::King)];
+
+    if(!king_bb)
+        return false;
+
+    int king_sq = __builtin_ctzll(king_bb);
+
+    return is_attacked(king_sq, foe);
 }
 
 void Board::set_piece(int sq, Color c, PieceType pt)
