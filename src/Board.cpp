@@ -541,15 +541,18 @@ std::vector<Move> Board::generate_pseudo() const
 
     // kings
     uint64_t kings = pieces_bb[color][as_int(PieceType::King)];
-    int from = __builtin_ctzll(kings);
-    uint64_t attacks = AttackTables::king[from] & ~color_bb[color];
-    while(attacks)
+    if(kings)
     {
-        int to = __builtin_ctzll(attacks);
-        attacks &= attacks - 1;
+        int from = __builtin_ctzll(kings);
+        uint64_t attacks = AttackTables::king[from] & ~color_bb[color];
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
 
-        bool isCap = ((color_bb[color ^ 1] >> to) & 1);
-        out.push_back(make_piece_move(from, to, color, PieceType::King, static_cast<uint8_t>(isCap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(isCap ? mailbox[to] : 0xFF)));
+            bool isCap = ((color_bb[color ^ 1] >> to) & 1);
+            out.push_back(make_piece_move(from, to, color, PieceType::King, static_cast<uint8_t>(isCap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(isCap ? mailbox[to] : 0xFF)));
+        }
     }
 
     // castling
