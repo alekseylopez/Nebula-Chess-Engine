@@ -158,6 +158,13 @@ private:
     inline Color as_color(int c) const { return static_cast<Color>(c); }
     inline PieceType as_piece_type(int pt) const { return static_cast<PieceType>(pt); }
 
+    // encode piece as an integer
+    inline int encode_piece(Color c, PieceType pt) const { return (as_int(c) << 3) | as_int(pt); }
+
+    // get piece info from integer
+    inline int decode_color(int piece) const { return piece >> 3; }
+    inline int decode_piece(int piece) const { return piece & 0b111; }
+
     // quiet move helper
     inline Move make_pawn_move(int from, int to, int color, PieceType pt, uint8_t flags) const
     {
@@ -193,8 +200,8 @@ private:
         m.piece = static_cast<uint8_t>((color << 3) | int(PieceType::Pawn));
         m.flags = static_cast<uint8_t>(MoveFlag::EnPassant);
         m.promo = static_cast<uint8_t>(0xFF);
-        int capSq = to + (color == 0 ? -8 : +8);
-        m.capture = static_cast<uint8_t>(mailbox[capSq]);
+        int cap_sq = to + (color == 0 ? -8 : 8);
+        m.capture = static_cast<uint8_t>(mailbox[cap_sq]);
         
         return m;
     }

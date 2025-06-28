@@ -7,7 +7,7 @@
 #include <cctype>
 #include <ostream>
 
-// TODO: bug with some positions ./nebula 5 1 "r2qkb1r/ppp2ppp/2n2n2/2Pp4/PP4b1/R5p1/3PP2P/1NBQKBNR w Kkq - 0 8"
+// TODO: bug with some positions ./nebula 2 1 "r2qkb1r/ppp2ppp/2n2n2/2Pp4/PP4b1/R5p1/3PP2P/1NBQKBNR w Kkq - 0 8"
 
 namespace nebula
 {
@@ -46,7 +46,7 @@ std::string Move::uci() const
 {
     auto sq_to_str = [&](int sq)
     {
-        char file = char('a' + (sq & 7));
+        char file = char('a' + (sq & 0b111));
         char rank = char('1' + (sq >> 3));
 
         return std::string{file, rank};
@@ -159,7 +159,7 @@ void Board::make_move(const Move& move)
     });
 
     // update half move counter
-    if((move.piece & 0b111) == as_int(PieceType::Pawn) || (move.flags & as_int(MoveFlag::Capture)))
+    if(decode_piece(move.piece) == as_int(PieceType::Pawn) || (move.flags & as_int(MoveFlag::Capture)))
         half_moves = 0;
     else
         ++half_moves;
@@ -176,9 +176,9 @@ void Board::make_move(const Move& move)
     int new_castling = castling_rights;
 
     // lose castling rights if kings moves
-    if((move.piece & 0b111) == as_int(PieceType::King))
+    if(decode_piece(move.piece) == as_int(PieceType::King))
     {
-        if((move.piece >> 3) == as_int(Color::White))
+        if(decode_color(move.piece) == 0)
             new_castling &= ~(castle_K | castle_Q);
         else
             new_castling &= ~(castle_k | castle_q);
@@ -212,7 +212,7 @@ void Board::make_move(const Move& move)
     remove_piece(move.from);
 
     // set the right piece type (handling promotion)
-    PieceType drop_pt = as_piece_type(move.piece & 0b111);
+    PieceType drop_pt = as_piece_type(decode_piece(move.piece));
     if(move.flags & as_int(MoveFlag::Promotion))
         drop_pt = as_piece_type(move.promo);
     set_piece(move.to, side_to_move, drop_pt);
@@ -270,8 +270,8 @@ void Board::unmake_move()
             return;
 
         // get color and piece type
-        int c  = code >> 3;
-        int pt = code & 0b111;
+        int c  = decode_color(code);
+        int pt = decode_piece(code);
 
         // translate square number to mask
         const uint64_t mask = 1ULL << sq;
@@ -289,8 +289,8 @@ void Board::unmake_move()
     auto add_sq = [&](int sq, int code)
     {
         // get color and piece type
-        int c = code >> 3;
-        int pt = code & 0b111;
+        int c = decode_color(code);
+        int pt = decode_piece(code);
 
         // translate square number to mask
         const uint64_t mask = 1ULL << sq;
@@ -316,7 +316,7 @@ void Board::unmake_move()
     {
         // handle en passant
         add_sq(move.from, move.piece);
-        int capSq = move.to + ((as_int(side_to_move) == 0) ? -8 : 8);
+        int capSq = move.to + ((decode_color(move.piece) == 0) ? -8 : 8);
         add_sq(capSq, move.capture);
     } else if (move.flags & as_int(MoveFlag::Capture))
     {
@@ -329,7 +329,7 @@ void Board::unmake_move()
         int rfrom = (as_int(side_to_move) == 0 ? 7 : 63);
         int rto = (as_int(side_to_move) == 0 ? 5 : 61);
         clear_sq(rto);
-        add_sq(rfrom, (as_int(side_to_move) << 3) | as_int(PieceType::Rook));
+        add_sq(rfrom, encode_piece(side_to_move, PieceType::Rook));
         add_sq(move.from, move.piece);
     } else if(move.flags & as_int(MoveFlag::QueenCastle))
     {
@@ -337,7 +337,7 @@ void Board::unmake_move()
         int rfrom = (as_int(side_to_move) == 0 ? 0 : 56);
         int rto = (as_int(side_to_move) == 0 ? 3 : 59);
         clear_sq(rto);
-        add_sq(rfrom, (as_int(side_to_move) << 3) | as_int(PieceType::Rook));
+        add_sq(rfrom, encode_piece(side_to_move, PieceType::Rook));
         add_sq(move.from, move.piece);
     } else
     {
@@ -384,7 +384,7 @@ std::vector<Move> Board::generate_pseudo() const
     // double pushes
     uint64_t start = pawns & (color == 0 ? rank_2 : rank_7);
     uint64_t one_step = color == 0 ? ((start << 8) & empty) : ((start >> 8) & empty);
-    uint64_t dbl = color==0 ? ((one_step << 8) & empty) : ((one_step >> 8) & empty);
+    uint64_t dbl = color == 0 ? ((one_step << 8) & empty) : ((one_step >> 8) & empty);
     while(dbl)
     {
         int to = __builtin_ctzll(dbl);
@@ -470,7 +470,7 @@ std::vector<Move> Board::generate_pseudo() const
             int from = __builtin_ctzll(bb);
             bb &= bb - 1;
 
-            int f0 = from & 7;
+            int f0 = from & 0b111;
             int r0 = from >> 3;
 
             for(auto [df, dr] : dirs)
@@ -605,7 +605,7 @@ bool Board::is_attacked(int sq, Color by) const
             if((occ >> t) & 1)
             {
                 int code = mailbox[t];
-                int col = code >> 3, pc = code & 0b111;
+                int col = decode_color(code), pc = decode_piece(code);
                 if(col == c && (pc == as_int(PieceType::Rook) || pc == as_int(PieceType::Queen)))
                     return true;
                 break;
@@ -626,7 +626,7 @@ bool Board::is_attacked(int sq, Color by) const
             if((occ >> t) & 1)
             {
                 int code = mailbox[t];
-                int col = code >> 3, pc = code & 0b111;
+                int col = decode_color(code), pc = decode_piece(code);
                 if(col == c && (pc == as_int(PieceType::Bishop) || pc == as_int(PieceType::Queen)))
                     return true;
                 break;
@@ -657,7 +657,7 @@ void Board::set_piece(int sq, Color c, PieceType pt)
     all_pieces_bb |= mask;
 
     // place in mailbox
-    mailbox[sq] = (as_int(c) << 3) | as_int(pt);
+    mailbox[sq] = encode_piece(c, pt);
 
     // update Zobrist key
     update_zobrist_piece(sq, c, pt);
@@ -680,8 +680,8 @@ void Board::remove_piece(int sq)
     const uint64_t mask = 1ULL << sq;
 
     // get type and color of piece
-    int c = piece >> 3;
-    int pt = piece & 0b111;
+    int c = decode_color(piece);
+    int pt = decode_piece(piece);
 
     // remove that piece
     pieces_bb[c][pt] &= ~mask;
@@ -714,8 +714,8 @@ void Board::print(std::ostream& os) const
                 os << "|   ";
             } else
             {
-                int c = code >> 3;
-                int pt = code & 0b111;
+                int c = decode_color(code);
+                int pt = decode_piece(code);
                 os <<  "| " << piece_unicode[c][pt] << ' ';
             }
         }
@@ -759,7 +759,7 @@ void Board::print(std::ostream& os) const
     os << "En-passant: ";
     if(en_passant_square >= 0)
     {
-        char file_c = char('a' + (en_passant_square & 7));
+        char file_c = char('a' + (en_passant_square & 0b111));
         char rank_c = char('1' + (en_passant_square >> 3));
         os << file_c << rank_c;
     } else
@@ -840,11 +840,11 @@ Move Board::from_uci(const std::string& uci) const
 
     // double-pawn push
     int dist = std::abs(to - from);
-    if(((pc & 0b111) == static_cast<int>(PieceType::Pawn)) && dist == 16)
-        m.flags |= static_cast<uint8_t>(MoveFlag::DoublePawnPush);
+    if((decode_piece(pc) == as_int(PieceType::Pawn)) && dist == 16)
+        m.flags |= as_int(MoveFlag::DoublePawnPush);
 
     // king castling
-    if((pc & 0b111) == static_cast<int>(PieceType::King))
+    if(decode_piece(pc) == as_int(PieceType::King))
     {
         if(from == 4 && to == 6)
             m.flags |= static_cast<uint8_t>(MoveFlag::KingCastle);
