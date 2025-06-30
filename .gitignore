@@ -42,3 +42,6 @@ Makefile
 
 # Build
 /nebula
+
+# Debug
+*.dSYM
