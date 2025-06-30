@@ -41,7 +41,7 @@ void pve(Board& board, int depth, int max_moves)
 
             if(successful)
             {
-                std::cout << eval << ": " << m.uci() << '\n';
+                std::cout << "Engine played " << m.uci() << '\n';
 
                 board.make_move(m);
 
