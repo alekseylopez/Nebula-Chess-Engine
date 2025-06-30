@@ -1,48 +1,47 @@
 #include "nebula/Board.hpp"
-#include "nebula/Search.hpp"
+#include "nebula/CLIHelper.hpp"
+#include "nebula/Driver.hpp"
 
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 int main(int argc, char* argv[])
 {
     std::cout << std::fixed << std::setprecision(2);
 
-    if(argc > 4 || argc < 3)
+    // input
+    nebula::InputMode mode;
+    int depth = 5;
+    int max_moves = std::numeric_limits<int>::max();
+
+    switch(nebula::opts(argc, argv, mode, depth, max_moves))
     {
-        std::cerr << "Usage:    " << argv[0] << " <depth> <max moves> [FEN]\nMake sure to include quotes around a FEN string.\n";
-        return 1;
-    }
-
-    int depth = std::stoi(argv[1]);
-    int max_moves = std::stoi(argv[2]);
-
-    nebula::Board board = argc == 3 ? nebula::Board() : nebula::Board(std::string(argv[3]));
-
-    board.print();
-
-    nebula::Search engine(depth);
-
-    for(int i = 0; i < max_moves; ++i)
-    {
-        nebula::Move m;
-        double eval;
-
-        bool successful = engine.best_move(board, m, eval);
-
-        if(successful)
+        case nebula::ReturnCode::Good:
         {
-            std::cout << eval << ": " << m.uci() << '\n';
+            nebula::Board board;
 
-            board.make_move(m);
-
-            board.print();
-        } else
-        {
-            std::cout << "Coudln't generate moves.\n";
+            switch(mode)
+            {
+                case nebula::InputMode::PlayerInput:
+                    nebula::pve(board, depth, max_moves);
+                    break;
+                
+                case nebula::InputMode::Auto:
+                    nebula::eve(board, depth, max_moves);
+                    break;
+            }
 
             break;
         }
+
+        case nebula::ReturnCode::Help:
+            return 0;
+            break;
+        
+        case nebula::ReturnCode::Error:
+            return 1;
+            break;
     }
     
     return 0;
