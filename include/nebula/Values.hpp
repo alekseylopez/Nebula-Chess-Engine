@@ -1,5 +1,5 @@
-#ifndef VALUES_HPP
-#define VALUES_HPP
+#ifndef NEBULA_VALUES_HPP
+#define NEBULA_VALUES_HPP
 
 namespace nebula
 {

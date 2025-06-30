@@ -1,5 +1,5 @@
-#ifndef SEARCH_HPP
-#define SEARCH_HPP
+#ifndef NEBULA_SEARCH_HPP
+#define NEBULA_SEARCH_HPP
 
 #include "nebula/Board.hpp"
 #include "nebula/TranspositionTable.hpp"
