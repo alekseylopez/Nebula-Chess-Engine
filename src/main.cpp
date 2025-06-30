@@ -2,9 +2,12 @@
 #include "nebula/Search.hpp"
 
 #include <iostream>
+#include <iomanip>
 
 int main(int argc, char* argv[])
 {
+    std::cout << std::fixed << std::setprecision(2);
+
     if(argc > 4 || argc < 3)
     {
         std::cerr << "Usage:    " << argv[0] << " <depth> <max moves> [FEN]\nMake sure to include quotes around a FEN string.\n";
@@ -18,27 +21,28 @@ int main(int argc, char* argv[])
 
     board.print();
 
+    nebula::Search engine(depth);
+
     for(int i = 0; i < max_moves; ++i)
     {
         nebula::Move m;
-        nebula::SearchResult flag;
-        double eval = nebula::search_root(board, depth, m, flag);
+        double eval;
 
-        if(flag == nebula::SearchResult::Checkmate)
+        bool successful = engine.best_move(board, m, eval);
+
+        if(successful)
         {
-            std::cout << "Checkmate!\n\n";
-            break;
-        } else if(flag == nebula::SearchResult::Stalemate)
+            std::cout << eval << ": " << m.uci() << '\n';
+
+            board.make_move(m);
+
+            board.print();
+        } else
         {
-            std::cout << "Stalemate!\n\n";
+            std::cout << "Coudln't generate moves.\n";
+
             break;
         }
-
-        std::cout << eval << ": " << m.uci() << '\n';
-
-        board.make_move(m);
-
-        board.print();
     }
     
     return 0;

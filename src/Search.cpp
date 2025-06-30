@@ -1,838 +1,240 @@
 #include "nebula/Search.hpp"
+#include "nebula/Values.hpp"
 
 namespace nebula
 {
 
-TranspositionTable::TranspositionTable(size_t size_mb)
+Search::Search(int max):
+    max_depth(max) {}
+
+bool Search::best_move(const Board& b, Move& out_best, double& eval)
 {
-    size_t entries = (size_mb * 1024 * 1024) / sizeof(TTEntry);
+    tt.clear();
 
-    size_t table_size = 1;
-    
-    while(table_size <= entries)
-        table_size <<= 1;
-    table_size >>= 1;
-    
-    table.resize(table_size);
-    std::fill(table.begin(), table.end(), TTEntry{});
+    // lots of operations need a mutable board
+    Board board = b;
 
-    size_mask = table_size - 1;
+    std::vector<Move> legal_moves = board.generate_moves();
 
-    current_age = 0;
-}
-
-bool TranspositionTable::probe(uint64_t hash, int depth, double alpha, double beta, double& score, Move& best_move)
-{
-    TTEntry& entry = table[hash & size_mask];
-    
-    if(entry.hash != hash)
+    if(legal_moves.empty())
         return false;
-    if(entry.depth < depth)
-        return false;
-
-    best_move = entry.best_move;
-
-    if(entry.type == Type::Exact)
-    {
-        score = entry.score;
-
-        return true;
-    } else if(entry.type == Type::LowerBound && entry.score >= beta)
-    {
-        score = entry.score;
-
-        return true;
-    } else if(entry.type == Type::UpperBound && entry.score <= alpha)
-    {
-        score = entry.score;
-
-        return true;
-    }
-
-    return false;
-}
-
-void TranspositionTable::store(uint64_t hash, double score, int depth, Type type, Move best_move)
-{
-    TTEntry& entry = table[hash & size_mask];
     
-    if(entry.hash == 0 || entry.hash == hash || depth >= entry.depth || current_age - entry.age > 2)
-    {
-        entry.hash = hash;
-        entry.score = score;
-        entry.depth = depth;
-        entry.type = type;
-        entry.best_move = best_move;
-        entry.age = current_age;
-    }
-}
-
-struct Frame
-{
-    int depth;
-    double alpha, beta;
-    double best;
-    size_t index;
-    std::vector<Move> moves;
-    Move tt_move;
-    Move best_move;
-    uint64_t hash;
-    bool tt_probed;
-    bool null_move_done;
-    bool null_move_allowed;
-    bool pv_node;
-    bool in_check;
-    Phase phase;
-    bool needs_research;
-    double research_score;
-};
-
-struct QFrame
-{
-    double alpha, beta;
-    double best;
-    double stand_pat;
-    size_t move_index;
-    std::vector<Move> moves;
-    int depth;
-    bool stand_pat_done;
-    bool generated_moves;
-};
-
-double evaluate(Board& board)
-{
-    double material = 0;
+    Move best_move = legal_moves[0];
+    double best_eval = -infinity;
     
-    // material and piece-square tables
-    for (int sq = 0; sq < 64; ++sq)
+    // iterative deepening
+    for(int depth = 1; depth <= max_depth; ++depth)
     {
-        int code = board.piece_at(sq);
-
-        if(code < 0)
-            continue;
-
-        int color = code >> 3;
-        int pt = code & 0b111;
-
-        double mat = Values::material_value[pt];
-        double pst = Values::pst[pt][color == 0 ? sq : sq ^ 56]; // from perspective of the right side
-        double val = mat + pst;
-
-        material += (color == 0 ? val : -val);
-    }
-
-    // mobility bonus
-    auto moves = board.generate_moves();
-    int mobility = static_cast<int>(moves.size());
-
-    return material + mobility * 0.1;
-}
-
-void order_moves(std::vector<Move>& moves, Board& board)
-{
-    // score moves
-    std::vector<std::pair<int, Move>> scored;
-    scored.reserve(moves.size());
-
-    for(auto& m : moves)
-    {
-        int score = 0;
-
-        if(is_capture(m))
-            score += 1000 + (m.capture != 0xFF ? m.capture & 0b111 : 0); // prefer capturing higher value
-        if(is_promotion(m))
-            score += 100; // promotions are important
-        if(gives_check(board, m))
-            score += 10; // checks are good
-
-        scored.emplace_back(score, m);
-    }
-
-    std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b)
-    {
-        // high scores first
-        return a.first > b.first;
-    });
-
-    // Write back
-    for(size_t i = 0; i < moves.size(); ++i)
-        moves[i] = scored[i].second;
-}
-
-double quiesce(Board& board, double alpha, double beta)
-{
-    constexpr int max_quiesce_depth = 6; // Reduced from 8
-    constexpr double delta_margin = 9.0;
-
-    std::vector<QFrame> stack;
-    stack.reserve(max_quiesce_depth + 2);
-    
-    stack.push_back(
-    {
-        alpha, beta,
-        -1e9,
-        -1e9,
-        0,
-        {},
-        0,
-        false,
-        false
-    });
-
-    double ret = 0.0;
-
-    while(!stack.empty())
-    {
-        QFrame& frame = stack.back();
-
-        // safety check
-        if(frame.depth >= max_quiesce_depth)
+        double current_best = -infinity;
+        Move current_move = legal_moves[0];
+        
+        // order moves based on previous iteration results
+        order_moves(legal_moves, board);
+        
+        for(const Move& move : legal_moves)
         {
-            ret = evaluate(board);
-
-            stack.pop_back();
+            board.make_move(move);
             
-            if(!stack.empty())
-            {
-                QFrame& prev = stack.back();
-
-                double value = -ret;
-                if(value > prev.best)
-                    prev.best = value;
-                if(prev.best > prev.alpha)
-                    prev.alpha = prev.best;
-                
-                board.unmake_move();
-
-                ++prev.move_index;
-            }
-
-            continue;
-        }
-
-        // Initialize frame on first entry
-        if(!frame.stand_pat_done)
-        {
-            frame.stand_pat_done = true;
-            frame.stand_pat = evaluate(board);
-
-            // Beta cutoff
-            if(frame.stand_pat >= frame.beta)
-            {
-                ret = frame.beta;
-                stack.pop_back();
-
-                if(!stack.empty())
-                {
-                    QFrame& prev = stack.back();
-
-                    double value = -ret;
-                    if(value > prev.best)
-                        prev.best = value;
-                    if(prev.best > prev.alpha)
-                        prev.alpha = prev.best;
-
-                    board.unmake_move();
-
-                    ++prev.move_index;
-                }
-
-                continue;
-            }
-
-            // delta pruning
-            if(frame.stand_pat + delta_margin < frame.alpha)
-            {
-                ret = frame.alpha;
-
-                stack.pop_back();
-                
-                if(!stack.empty())
-                {
-                    QFrame& prev = stack.back();
-
-                    double value = -ret;
-                    if(value > prev.best)
-                        prev.best = value;
-                    if(prev.best > prev.alpha)
-                        prev.alpha = prev.best;
-
-                    board.unmake_move();
-
-                    ++prev.move_index;
-                }
-
-                continue;
-            }
-
-            if(frame.stand_pat > frame.alpha)
-                frame.alpha = frame.stand_pat;
+            double score = -negamax(board, depth - 1, -infinity, infinity);
             
-            frame.best = frame.alpha;
-        }
-
-        // generate moves once
-        if(!frame.generated_moves)
-        {
-            frame.generated_moves = true;
-
-            auto all_moves = board.generate_moves();
+            board.unmake_move();
             
-            // only include captures and promotions
-            for(const auto& m : all_moves)
-                if(is_capture(m) || is_promotion(m))
-                    frame.moves.push_back(m);
-
-            order_moves(frame.moves, board);
-        }
-
-        // check if we're done with moves
-        if(frame.move_index >= frame.moves.size())
-        {
-            ret = frame.best;
-            stack.pop_back();
-
-            if(!stack.empty())
+            if(score > current_best)
             {
-                QFrame& prev = stack.back();
-
-                double value = -ret;
-                if(value > prev.best)
-                    prev.best = value;
-                if(prev.best > prev.alpha)
-                    prev.alpha = prev.best;
-
-                board.unmake_move();
-
-                ++prev.move_index;
+                current_best = score;
+                current_move = move;
             }
-
-            continue;
         }
-
-        // beta pruning
-        if(frame.best >= frame.beta)
-        {
-            ret = frame.best;
-            stack.pop_back();
-
-            if(!stack.empty())
-            {
-                QFrame& prev = stack.back();
-
-                double value = -ret;
-                if(value > prev.best)
-                    prev.best = value;
-                if(prev.best > prev.alpha)
-                    prev.alpha = prev.best;
-
-                board.unmake_move();
-
-                ++prev.move_index;
-            }
-
-            continue;
-        }
-
-        const Move& current_move = frame.moves[frame.move_index];
-        board.make_move(current_move);
-
-        stack.push_back(
-        {
-            -frame.beta, 
-            -std::max(frame.alpha, frame.best),
-            -1e9,
-            -1e9,
-            0,
-            {},
-            frame.depth + 1,
-            false,
-            false
-        });
+        
+        // update best move and evaluation
+        best_eval = current_best;
+        best_move = current_move;
+        
+        // move the best move to front for next iteration
+        auto it = std::find(legal_moves.begin(), legal_moves.end(), best_move);
+        if(it != legal_moves.end())
+            std::swap(*it, legal_moves[0]);
     }
-
-    return ret;
-}
-
-double negamax(Board& board, int max_depth)
-{
-    constexpr double inf = 1e9;
-    constexpr double mate_score = 1000000.0;
-
-    std::vector<Frame> stack;
-    stack.push_back(
-    {
-        max_depth,
-        -inf, inf,
-        -inf,
-        0,
-        {},
-        Move{},
-        Move{},
-        0,
-        false,
-        false,
-        true,
-        true,
-        false,
-        Phase::Init,
-        false,
-        0.0
-    });
-
-    double ret = 0.0;
-
-    while(!stack.empty())
-    {
-        Frame& frame = stack.back();
-
-        switch(frame.phase)
-        {
-            case Phase::Init:
-            {
-                frame.hash = board.key();
-                frame.in_check = board.in_check();
-                frame.pv_node = (frame.beta - frame.alpha > 1);
-                
-                // quiescence search
-                if(frame.depth == 0)
-                {
-                    ret = quiesce(board, frame.alpha, frame.beta);
-                    stack.pop_back();
-                    
-                    if(!stack.empty())
-                    {
-                        Frame& prev = stack.back();
-
-                        double value = -ret;
-                        if(value > prev.best)
-                        {
-                            prev.best = value;
-                            if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                prev.best_move = prev.moves[prev.index];
-                        }
-                        if(prev.best > prev.alpha)
-                            prev.alpha = prev.best;
-                        
-                        //board.unmake_move();
-
-                        ++prev.index;
-                        prev.phase = Phase::SearchMoves;
-                    }
-
-                    continue;
-                }
-                
-                frame.phase = Phase::TTProbe;
-
-                break;
-            }
-
-            case Phase::TTProbe:
-            {
-                double tt_score;
-
-                if(tt.probe(frame.hash, frame.depth, frame.alpha, frame.beta, tt_score, frame.tt_move))
-                {
-                    ret = tt_score;
-
-                    stack.pop_back();
-                    
-                    if(!stack.empty())
-                    {
-                        Frame& prev = stack.back();
-
-                        double value = -ret;
-                        if(value > prev.best)
-                        {
-                            prev.best = value;
-                            if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                prev.best_move = prev.moves[prev.index];
-                        }
-                        if(prev.best > prev.alpha)
-                            prev.alpha = prev.best;
-
-                        //board.unmake_move();
-
-                        ++prev.index;
-                        prev.phase = Phase::SearchMoves;
-                    }
-                    continue;
-                }
-                
-                frame.tt_probed = true;
-                frame.phase = Phase::NullMove;
-
-                break;
-            }
-
-            case Phase::NullMove:
-            {
-                if(frame.null_move_allowed && frame.depth >= 3 && !frame.in_check)
-                {
-                    const int null_move_reduction = 2;
-
-                    frame.null_move_done = true;
-                    
-                    board.make_null_move();
-                    
-                    stack.push_back(
-                    {
-                        frame.depth - null_move_reduction - 1,
-                        -frame.beta, -frame.beta + 1,
-                        -inf,
-                        0,
-                        {},
-                        Move{},
-                        Move{},
-                        0,
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        Phase::Init,
-                        false,
-                        0.0
-                    });
-
-                    continue;
-                }
-                
-                frame.phase = Phase::MoveGen;
-
-                break;
-            }
-
-            case Phase::MoveGen:
-            {
-                if(frame.null_move_done)
-                {
-                    board.unmake_null_move();
-                    
-                    if(-ret >= frame.beta)
-                    {
-                        ret = frame.beta;
-
-                        stack.pop_back();
-                        
-                        if(!stack.empty())
-                        {
-                            Frame& prev = stack.back();
-
-                            double value = -ret;
-                            if(value > prev.best)
-                            {
-                                prev.best = value;
-                                if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                    prev.best_move = prev.moves[prev.index];
-                            }
-                            if(prev.best > prev.alpha)
-                                prev.alpha = prev.best;
-
-                            //board.unmake_move();
-
-                            ++prev.index;
-                            prev.phase = Phase::SearchMoves;
-                        }
-
-                        continue;
-                    }
-
-                    frame.null_move_done = false;
-                }
-
-                // generate and order moves
-                frame.moves = board.generate_moves();
-                
-                // terminal position check
-                if(frame.moves.empty())
-                {
-                    Color us = board.turn();
-                    
-                    uint64_t king_bb = board.pieces(us, PieceType::King);
-                    if(king_bb == 0) // should not happen
-                    {
-                        ret = -mate_score; // treat as mate
-
-                        stack.pop_back();
-
-                        continue;
-                    }
-                    int king_sq = __builtin_ctzll(king_bb);
-                    
-                    if(board.is_attacked(king_sq, us == Color::White ? Color::Black : Color::White))
-                        ret = -mate_score + (max_depth - frame.depth); // checkmate
-                    else
-                        ret = 0.0; // stalemate
-
-                    stack.pop_back();
-                    
-                    if(!stack.empty())
-                    {
-                        Frame& prev = stack.back();
-
-                        double value = -ret;
-                        if(value > prev.best)
-                        {
-                            prev.best = value;
-                            if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                prev.best_move = prev.moves[prev.index];
-                        }
-                        if(prev.best > prev.alpha)
-                            prev.alpha = prev.best;
-
-                        //board.unmake_move();
-
-                        ++prev.index;
-                        prev.phase = Phase::SearchMoves;
-                    }
-                    continue;
-                }
-
-                order_moves(frame.moves, board);
-
-                frame.best_move = frame.moves[0];
-                frame.phase = Phase::SearchMoves;
-
-                break;
-            }
-
-            case Phase::SearchMoves:
-            {
-                if(frame.index >= frame.moves.size())
-                {
-                    // store in transposition table
-                    Type tt_type = (frame.best <= frame.alpha) ? Type::UpperBound : Type::Exact;
-                    tt.store(frame.hash, frame.best, frame.depth, tt_type, frame.best_move);
-                    
-                    ret = frame.best;
-
-                    stack.pop_back();
-                    
-                    if(!stack.empty())
-                    {
-                        Frame& prev = stack.back();
-
-                        double value = -ret;
-                        if(value > prev.best)
-                        {
-                            prev.best = value;
-                            if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                prev.best_move = prev.moves[prev.index];
-                        }
-                        if(prev.best > prev.alpha)
-                            prev.alpha = prev.best;
-
-                        //board.unmake_move();
-
-                        ++prev.index;
-                    }
-
-                    continue;
-                }
-
-                // beta cutoff
-                if(frame.best >= frame.beta)
-                {
-                    // store in transposition table
-                    tt.store(frame.hash, frame.best, frame.depth, Type::LowerBound, frame.best_move);
-                    
-                    ret = frame.beta;
-
-                    stack.pop_back();
-                    
-                    if(!stack.empty())
-                    {
-                        Frame& prev = stack.back();
-
-                        double value = -ret;
-                        if(value > prev.best)
-                        {
-                            prev.best = value;
-                            if(!prev.moves.empty() && prev.index < prev.moves.size())
-                                prev.best_move = prev.moves[prev.index];
-                        }
-                        if(prev.best > prev.alpha)
-                            prev.alpha = prev.best;
-
-                        //board.unmake_move();
-
-                        ++prev.index;
-                    }
-
-                    continue;
-                }
-
-                // make move and search
-                const Move& current_move = frame.moves[frame.index];
-                board.make_move(current_move);
-                
-                // principal variation search
-                if(frame.index == 0 || !frame.pv_node)
-                {
-                    // first move or non-PV node: full window search
-                    stack.push_back(
-                    {
-                        frame.depth - 1,
-                        -frame.beta, -std::max(frame.alpha, frame.best),
-                        -inf,
-                        0,
-                        {},
-                        Move{},
-                        Move{},
-                        0,
-                        false,
-                        false,
-                        true,
-                        false,
-                        false,
-                        Phase::Init,
-                        false,
-                        0.0
-                    });
-                } else
-                {
-                    // principal variation node
-                    double search_alpha = std::max(frame.alpha, frame.best);
-                    stack.push_back(
-                    {
-                        frame.depth - 1,
-                        -search_alpha - 1, -search_alpha,
-                        -inf,
-                        0,
-                        {},
-                        Move{},
-                        Move{},
-                        0,
-                        false,
-                        false,
-                        true,
-                        false,
-                        false,
-                        Phase::Init,
-                        false,
-                        0.0
-                    });
-
-                    frame.needs_research = true;
-                    frame.research_score = 0.0;
-                }
-
-                continue;
-            }
-
-            default:
-            {
-                double score = -ret;
     
-                if(frame.needs_research)
-                {
-                    frame.research_score = score;
-                    
-                    // check if we need full window re-search
-                    if(score > frame.alpha && score < frame.beta)
-                    {
-                        // keep move on board, do full window search
-                        stack.push_back(
-                        {
-                            frame.depth - 1,
-                            -frame.beta, -frame.alpha,
-                            -inf,
-                            0,
-                            {},
-                            Move{},
-                            Move{},
-                            0,
-                            false,
-                            false,
-                            true,
-                            false,
-                            false,
-                            Phase::Init,
-                            false,
-                            0.0
-                        });
+    out_best = best_move;
+    eval = board.turn() == Color::White ? best_eval : -best_eval;
 
-                        frame.needs_research = false;
-
-                        continue;
-                    } else
-                    {
-                        // null window result is sufficient
-                        frame.needs_research = false;
-                    }
-                }
-                
-                // Now we can safely unmake the move
-                board.unmake_move();
-                
-                // Update best score and move
-                if(score > frame.best)
-                {
-                    frame.best = score;
-                    frame.best_move = frame.moves[frame.index];
-                }
-                if(frame.best > frame.alpha)
-                    frame.alpha = frame.best;
-                
-                ++frame.index;
-                frame.phase = Phase::SearchMoves;
-
-                break;
-            }
-        }
-    }
-
-    return ret;
+    return true;
 }
 
-double search_root(Board& board, int max_depth, Move& out_best, SearchResult& result_flag)
+double Search::negamax(Board& board, int depth, double alpha, double beta)
 {
-    constexpr double inf = 1e9;
+    uint64_t key = board.key();
 
-    auto moves = board.generate_moves();
+    // check transposition table
+    const TTEntry* tt_entry = tt.probe(key);
+
+    if(tt_entry && tt_entry->depth >= depth)
+    {
+        double tt_score = tt_entry->eval;
+
+        if(tt_entry->flag == TTFlag::Exact)
+            return tt_score;
+        else if(tt_entry->flag == TTFlag::LowerBound && tt_score >= beta)
+            return tt_score;
+        else if(tt_entry->flag == TTFlag::UpperBound && tt_score <= alpha)
+            return tt_score;
+    }
+
+    if(depth == 0)
+        return quiesce(board, alpha, beta, depth);
+    
+    std::vector<Move> moves = board.generate_moves();
+
+    // checkmate or stalemate
+    if(moves.empty())
+        return board.in_check() ? -mate_score + (max_depth - depth) : 0.0;
+    
     order_moves(moves, board);
 
-    if(moves.empty())
-    {
-        // terminal position
-        Color us = board.turn();
-        int king_sq = -1;
-        for(int sq = 0; sq < 64; ++sq)
-            if(board.piece_at(sq) == ((static_cast<int>(us) << 3) | static_cast<int>(PieceType::King)))
-                king_sq = sq;
-
-        if(king_sq != -1 && board.is_attacked(king_sq, us == Color::White ? Color::Black : Color::White))
-            result_flag = SearchResult::Checkmate;
-        else
-            result_flag = SearchResult::Stalemate;
-
-        return evaluate(board);
-    }
-    
-    result_flag = SearchResult::KeepGoing;
-
-    double best = -inf;
+    double best_score = -infinity;
     Move best_move = moves[0];
 
-    // different root nodes
-    for(const Move& m : moves)
+    // recursive call for each move
+    for(const Move& move : moves)
     {
-        board.make_move(m);
-        double score = -negamax(board, max_depth - 1);
-        board.unmake_move();
+        board.make_move(move);
 
-        if(score > best)
+        double score = -negamax(board, depth - 1, -beta, -alpha);
+
+        board.unmake_move();
+        
+        // update score
+        if(score > best_score)
         {
-            best = score;
-            best_move = m;
+            best_score = score;
+            best_move = move;
         }
+
+        // beta cutoff (opponent won't allow this)
+        if(score >= beta)
+        {
+            tt.store(key, score, depth, TTFlag::LowerBound, move);
+
+            return score;
+        }
+
+        // update alpha
+        if(score > alpha)
+            alpha = score;
     }
 
-    out_best = best_move;
+    tt.store(key, best_score, depth, (best_score <= alpha) ? TTFlag::UpperBound : TTFlag::Exact, best_move);
 
-    return best;
+    return best_score;
+}
+
+double Search::quiesce(Board& board, double alpha, double beta, int depth)
+{
+    double stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
+
+    // beta cutoff
+    if(stand_pat >= beta)
+        return stand_pat;
+    
+    // update alpha
+    if(stand_pat > alpha)
+        alpha = stand_pat;
+    
+    // only keep important moves
+    std::vector<Move> important = board.generate_moves();
+    important.erase(std::remove_if(important.begin(), important.end(), [&](const Move& m)
+    {
+        return !is_capture(m) && !is_promotion(m) && !gives_check(board, m);
+    }), important.end());
+
+    // no important moves
+    if(important.empty())
+        return stand_pat;
+
+    order_moves(important, board);
+
+    // recursive call for each imporant move
+    for(const Move& move : important)
+    {
+        board.make_move(move);
+
+        double score = -quiesce(board, -beta, -alpha, depth + 1);
+        
+        board.unmake_move();
+
+        // beta cutoff
+        if(score >= beta)
+            return score;
+        
+        // update alpha
+        if(score > alpha)
+            alpha = score;
+    }
+
+    return alpha;
+}
+
+double Search::evaluate(const Board& board)
+{
+    double score = 0.0;
+    
+    for(int piece = 0; piece < Board::num_piece_types; ++piece)
+    {
+        PieceType pt = static_cast<PieceType>(piece);
+        
+        // white pieces
+        uint64_t white_pieces = board.pieces(Color::White, pt);
+        while(white_pieces)
+        {
+            int sq = __builtin_ctzll(white_pieces);
+            score += Values::material_value[piece];
+            score += Values::pst[piece][sq] * 0.1;
+            white_pieces &= white_pieces - 1;
+        }
+        
+        // black pieces
+        uint64_t black_pieces = board.pieces(Color::Black, pt);
+        while(black_pieces)
+        {
+            int sq = __builtin_ctzll(black_pieces);
+            score -= Values::material_value[piece];
+            // mirror PST scores vertically
+            score -= Values::pst[piece][sq ^ 56] * 0.1;
+            black_pieces &= black_pieces - 1;
+        }
+    }
+    
+    return score;
+}
+
+void Search::order_moves(std::vector<Move>& moves, Board& board)
+{
+    // captures first, then promotions, then others
+    std::sort(moves.begin(), moves.end(), [&](const Move& a, const Move& b)
+    {
+        int score_a = 0, score_b = 0;
+        
+        // prioritize captures
+        if(is_capture(a))
+            score_a += 1000;
+        if(is_capture(b))
+            score_b += 1000;
+        
+        // then promotions
+        if(is_promotion(a))
+            score_a += 100;
+        if(is_promotion(b))
+            score_b += 100;
+        
+        // then checks
+        if(gives_check(board, a))
+            score_a += 10;
+        if(gives_check(board, b))
+            score_b += 10;
+        
+        return score_a > score_b;
+    });
 }
 
 }
