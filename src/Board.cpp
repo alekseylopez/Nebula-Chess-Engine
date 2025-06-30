@@ -60,6 +60,11 @@ std::string Move::uci() const
     return s;
 }
 
+bool Move::operator==(const Move& other) const
+{
+    return from == other.from && to == other.to && piece == other.piece && capture == other.capture && promo == other.promo && flags == other.flags;
+}
+
 Board::Board(const std::string& fen):
     history{},
     pieces_bb{{{0ULL}}},

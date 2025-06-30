@@ -33,6 +33,8 @@ struct Move
     uint8_t flags;
 
     std::string uci() const;
+
+    bool operator==(const Move& other) const;
 };
 
 enum class Color : int { White = 0, Black };
