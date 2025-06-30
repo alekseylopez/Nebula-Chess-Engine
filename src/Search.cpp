@@ -9,8 +9,6 @@ Search::Search(int max):
 
 bool Search::best_move(const Board& b, Move& out_best, double& eval)
 {
-    tt.clear();
-
     // lots of operations need a mutable board
     Board board = b;
 
@@ -82,7 +80,7 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
     }
 
     if(depth == 0)
-        return quiesce(board, alpha, beta, depth);
+        return quiesce(board, depth, alpha, beta);
     
     std::vector<Move> moves = board.generate_moves();
 
@@ -129,9 +127,13 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
     return best_score;
 }
 
-double Search::quiesce(Board& board, double alpha, double beta, int depth)
+double Search::quiesce(Board& board, int depth, double alpha, double beta)
 {
     double stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
+
+    // reasonable
+    if(depth > 10)
+        return stand_pat;
 
     // beta cutoff
     if(stand_pat >= beta)
@@ -159,7 +161,7 @@ double Search::quiesce(Board& board, double alpha, double beta, int depth)
     {
         board.make_move(move);
 
-        double score = -quiesce(board, -beta, -alpha, depth + 1);
+        double score = -quiesce(board, depth + 1, -beta, -alpha);
         
         board.unmake_move();
 

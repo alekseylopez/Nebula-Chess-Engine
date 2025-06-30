@@ -31,7 +31,7 @@ private:
     double negamax(Board& board, int depth, double alpha, double beta);
 
     // quiescence search
-    double quiesce(Board& board, double alpha, double beta, int depth);
+    double quiesce(Board& board, int depth, double alpha, double beta);
 
     // static evaluation: white +, black -
     double evaluate(const Board& board);
