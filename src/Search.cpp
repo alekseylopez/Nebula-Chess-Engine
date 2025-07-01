@@ -64,8 +64,8 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
 {
     uint64_t key = board.key();
 
-    // repeating moves is a draw
-    if(board.is_repetition())
+    // draw options
+    if(board.is_repetition() || board.is_fifty_move_rule())
         return 0.0;
 
     // check transposition table
