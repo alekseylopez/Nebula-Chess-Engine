@@ -74,6 +74,9 @@ public:
     // check for repetition
     bool is_repetition() const;
 
+    // check for fifty move rule
+    inline bool is_fifty_move_rule() const { return half_moves >= 100; }
+
     // getting peudo-legal moves
     std::vector<Move> generate_pseudo() const;
 

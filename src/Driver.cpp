@@ -22,15 +22,23 @@ void pve(Board& board, int depth, int max_moves)
             {
                 if(board.in_check())
                 {
-                    std::cout << "Checkmate!\n";
+                    std::cout << "Checkmate!\n\n";
                     wrapper.set_tag("Result", "0-1");
                 } else
                 {
-                    std::cout << "Stalemate.\n";
-                    wrapper.set_tag("Result", "0.5-0.5");
+                    std::cout << "Draw by stalemate.\n\n";
+                    wrapper.set_tag("Result", "1/2-1/2");
                 }
                 
-                return;
+                break;
+            }
+
+            if(board.is_fifty_move_rule())
+            {
+                std::cout << "Draw by 50-move rule.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
+
+                break;
             }
 
             std::string uci;
@@ -52,8 +60,8 @@ void pve(Board& board, int depth, int max_moves)
 
             if(board.is_repetition())
             {
-                std::cout << "Draw by repetition.\n";
-                wrapper.set_tag("Result", "0.5-0.5");
+                std::cout << "Draw by repetition.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
 
                 break;
             }
@@ -65,13 +73,21 @@ void pve(Board& board, int depth, int max_moves)
             {
                 if(board.in_check())
                 {
-                    std::cout << "Checkmate!\n";
+                    std::cout << "Checkmate!\n\n";
                     wrapper.set_tag("Result", "1-0");
                 } else
                 {
-                    std::cout << "Stalemate.\n";
-                    wrapper.set_tag("Result", "0.5-0.5");
+                    std::cout << "Draw by stalemate.\n\n";
+                    wrapper.set_tag("Result", "1/2-1/2");
                 }
+                
+                break;
+            }
+
+            if(board.is_fifty_move_rule())
+            {
+                std::cout << "Draw by 50-move rule.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
                 
                 break;
             }
@@ -97,8 +113,8 @@ void pve(Board& board, int depth, int max_moves)
             
             if(board.is_repetition())
             {
-                std::cout << "Draw by repetition.\n";
-                wrapper.set_tag("Result", "0.5-0.5");
+                std::cout << "Draw by repetition.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
 
                 break;
             }
@@ -123,16 +139,24 @@ void eve(Board& board, int depth, int max_moves)
         {
             if(board.in_check())
             {
-                std::cout << "Checkmate!\n";
+                std::cout << "Checkmate!\n\n";
                 wrapper.set_tag("Result", i % 2 == 0 ? "0-1" : "1-0");
             } else
             {
-                std::cout << "Stalemate.\n";
-                wrapper.set_tag("Result", "0.5-0.5");
+                std::cout << "Draw by stalemate.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
             }
             
             break;
         }
+
+        if(board.is_fifty_move_rule())
+            {
+                std::cout << "Draw by 50-move rule.\n\n";
+                wrapper.set_tag("Result", "1/2-1/2");
+                
+                break;
+            }
 
         nebula::Move m;
         double eval;
@@ -155,8 +179,8 @@ void eve(Board& board, int depth, int max_moves)
 
         if(board.is_repetition())
         {
-            std::cout << "Draw by repetition.\n";
-            wrapper.set_tag("Result", "0.5-0.5");
+            std::cout << "Draw by repetition.\n\n";
+            wrapper.set_tag("Result", "1/2-1/2");
 
             break;
         }
