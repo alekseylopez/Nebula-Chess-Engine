@@ -64,6 +64,13 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
 {
     uint64_t key = board.key();
 
+    // repeating moves is a draw
+    if(board.is_repetition())
+    {
+        std::cout << "DRAW HERE\n";
+        return 0.0;
+    }
+
     // check transposition table
     const TTEntry* tt_entry = tt.probe(key);
 
@@ -98,7 +105,11 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
     {
         board.make_move(move);
 
+        position_history.push_back(board.key());
+
         double score = -negamax(board, depth - 1, -beta, -alpha);
+
+        position_history.pop_back();
 
         board.unmake_move();
         

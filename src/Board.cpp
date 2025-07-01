@@ -64,6 +64,7 @@ bool Move::operator==(const Move& other) const
 }
 
 Board::Board(const std::string& fen):
+    pos_history{},
     history{},
     pieces_bb{{{0ULL}}},
     color_bb{{0ULL}},
@@ -145,11 +146,37 @@ Board::Board(const std::string& fen):
     // counters
     half_moves = std::stoi(halfm);
     full_move = std::stoi(fullm);
+
+    // initialize Zobrist key
+    for(int sq = 0; sq < 64; ++sq)
+    {
+        int piece_code = mailbox[sq];
+        if(piece_code >= 0)
+        {
+            Color c = as_color(decode_color(piece_code));
+            PieceType pt = as_piece_type(decode_piece(piece_code));
+            zobrist_key ^= zobrist_piece[as_int(c)][as_int(pt)][sq];
+        }
+    }
+
+    zobrist_key ^= zobrist_castling[castling_rights];
+
+    if(en_passant_square >= 0)
+    {
+        int ep_file = en_passant_square & 7;
+        zobrist_key ^= zobrist_en_passant_file[ep_file];
+    }
+    
+    if(side_to_move == Color::Black)
+        zobrist_key ^= zobrist_black_to_move;
 }
 
 void Board::make_move(const Move& move)
 {
-    // push to history
+    // push to position history
+    pos_history.push_back(key());
+
+    // push to move history
     history.push_back(
     {
         move,
@@ -347,6 +374,10 @@ void Board::unmake_move()
         // regular move
         add_sq(move.from, move.piece);
     }
+
+    // remove from history
+    if(!pos_history.empty())
+        pos_history.pop_back();
 }
 
 void Board::make_null_move()
@@ -380,6 +411,32 @@ void Board::unmake_null_move()
     side_to_move = u.prev_side_to_move;
     en_passant_square = u.prev_en_passant;
     zobrist_key = u.prev_zobrist_key;
+}
+
+bool Board::is_repetition() const
+{
+    // can't be repetition with < 4 ply
+    if(pos_history.size() < 4)
+        return false;
+        
+    uint64_t current_key = key();
+    int count = 0;
+    
+    // go back a full move (check same side positions)
+    int start = pos_history.size() - 2;
+    
+    for(int i = start; i >= 0; i -= 2)
+    {
+        if(pos_history[i] == current_key)
+            if(++count >= 2) // threefold repetition
+                return true;
+        
+        // 50-move rule approximation
+        if(start - i > 100)
+            break;
+    }
+    
+    return false;
 }
 
 std::vector<Move> Board::generate_pseudo() const

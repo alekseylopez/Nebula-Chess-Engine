@@ -71,6 +71,9 @@ public:
     void make_null_move();
     void unmake_null_move();
 
+    // check for repetition
+    bool is_repetition() const;
+
     // getting peudo-legal moves
     std::vector<Move> generate_pseudo() const;
 
@@ -126,6 +129,9 @@ private:
         int prev_en_passant;
         uint64_t prev_zobrist_key;
     };
+
+    // history of positions
+    std::vector<uint64_t> pos_history;
 
     // history of moves
     std::vector<Undo> history;
