@@ -1,5 +1,6 @@
 #include "nebula/Driver.hpp"
 #include "nebula/Search.hpp"
+#include "nebula/PGNExporter.hpp"
 
 namespace nebula
 {
@@ -9,6 +10,7 @@ void pve(Board& board, int depth, int max_moves)
     board.print();
 
     Search engine(depth);
+    PGNExporter wrapper(&board);
 
     for(int i = 0; i < max_moves; ++i)
     {
@@ -19,9 +21,14 @@ void pve(Board& board, int depth, int max_moves)
             if(legal.empty())
             {
                 if(board.in_check())
+                {
                     std::cout << "Checkmate!\n";
-                else
+                    wrapper.set_tag("Result", "0-1");
+                } else
+                {
                     std::cout << "Stalemate.\n";
+                    wrapper.set_tag("Result", "0.5-0.5");
+                }
                 
                 return;
             }
@@ -39,15 +46,16 @@ void pve(Board& board, int depth, int max_moves)
                 continue;
             }
 
-            board.make_move(move);
+            wrapper.make_move(move);
 
             board.print();
 
             if(board.is_repetition())
             {
                 std::cout << "Draw by repetition.\n";
+                wrapper.set_tag("Result", "0.5-0.5");
 
-                return;
+                break;
             }
         } else // engine turn
         {
@@ -56,11 +64,16 @@ void pve(Board& board, int depth, int max_moves)
             if(legal.empty())
             {
                 if(board.in_check())
+                {
                     std::cout << "Checkmate!\n";
-                else
-                    std::cout << "Stalemate!\n";
+                    wrapper.set_tag("Result", "1-0");
+                } else
+                {
+                    std::cout << "Stalemate.\n";
+                    wrapper.set_tag("Result", "0.5-0.5");
+                }
                 
-                return;
+                break;
             }
 
             nebula::Move m;
@@ -72,24 +85,27 @@ void pve(Board& board, int depth, int max_moves)
             {
                 std::cout << "Engine played " << m.uci() << '\n';
 
-                board.make_move(m);
+                wrapper.make_move(m);
 
                 board.print();
             } else // shouldn't happen
             {
                 std::cout << "Coudln't generate moves.\n";
 
-                return;
+                break;
             }
             
             if(board.is_repetition())
             {
                 std::cout << "Draw by repetition.\n";
+                wrapper.set_tag("Result", "0.5-0.5");
 
-                return;
+                break;
             }
         }
     }
+
+    std::cout << wrapper.out();
 }
 
 void eve(Board& board, int depth, int max_moves)
@@ -97,6 +113,7 @@ void eve(Board& board, int depth, int max_moves)
     board.print();
 
     Search engine(depth);
+    PGNExporter wrapper(&board);
 
     for(int i = 0; i < max_moves; ++i)
     {
@@ -105,11 +122,16 @@ void eve(Board& board, int depth, int max_moves)
         if(legal.empty())
         {
             if(board.in_check())
+            {
                 std::cout << "Checkmate!\n";
-            else
-                std::cout << "Stalemate!\n";
+                wrapper.set_tag("Result", i % 2 == 0 ? "0-1" : "1-0");
+            } else
+            {
+                std::cout << "Stalemate.\n";
+                wrapper.set_tag("Result", "0.5-0.5");
+            }
             
-            return;
+            break;
         }
 
         nebula::Move m;
@@ -121,7 +143,7 @@ void eve(Board& board, int depth, int max_moves)
         {
             std::cout << eval << ": " << m.uci() << '\n';
 
-            board.make_move(m);
+            wrapper.make_move(m);
 
             board.print();
         } else // shouldn't happen
@@ -134,10 +156,13 @@ void eve(Board& board, int depth, int max_moves)
         if(board.is_repetition())
         {
             std::cout << "Draw by repetition.\n";
+            wrapper.set_tag("Result", "0.5-0.5");
 
-            return;
+            break;
         }
     }
+
+    std::cout << wrapper.out();
 }
 
 }

@@ -23,7 +23,7 @@ enum class MoveFlag : uint8_t
 
 struct Move
 {
-    static constexpr char pchar[6] = { 'q', 'r', 'b', 'n', 'p', 'k' };
+    static constexpr char pchar[6] = { 'p', 'n', 'b', 'r', 'q', 'k' };
 
     uint8_t from;
     uint8_t to;
@@ -90,6 +90,9 @@ public:
 
     // returns side to move
     inline Color turn() const { return side_to_move; }
+
+    // returns number of full moves
+    inline int full() const { return full_move; }
 
     // helper
     bool is_attacked(int sq, Color by) const;
@@ -224,7 +227,7 @@ private:
         m.from = static_cast<uint8_t>(from);
         m.to = static_cast<uint8_t>(to);
         m.piece = static_cast<uint8_t>((color << 3) | int(PieceType::Pawn));
-        m.flags = static_cast<uint8_t>(MoveFlag::EnPassant);
+        m.flags = static_cast<uint8_t>(MoveFlag::EnPassant) | static_cast<uint8_t>(MoveFlag::Capture);
         m.promo = static_cast<uint8_t>(0xFF);
         int cap_sq = to + (color == 0 ? -8 : 8);
         m.capture = static_cast<uint8_t>(mailbox[cap_sq]);
