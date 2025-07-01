@@ -25,7 +25,6 @@ private:
 
     int max_depth;
     TranspositionTable tt;
-    std::vector<uint64_t> position_history;
 
     // mutable Board because of make_move/unmake_move
     // returns score from white's perspective

@@ -420,21 +420,12 @@ bool Board::is_repetition() const
         return false;
         
     uint64_t current_key = key();
-    int count = 0;
+    int count = 1;
     
-    // go back a full move (check same side positions)
-    int start = pos_history.size() - 2;
-    
-    for(int i = start; i >= 0; i -= 2)
-    {
+    for(int i = pos_history.size() - 2; i >= 0; i -= 2)
         if(pos_history[i] == current_key)
-            if(++count >= 2) // threefold repetition
+            if(++count >= 3) // threefold repetition
                 return true;
-        
-        // 50-move rule approximation
-        if(start - i > 100)
-            break;
-    }
     
     return false;
 }
