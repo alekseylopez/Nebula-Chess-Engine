@@ -192,15 +192,15 @@ private:
     inline int decode_piece(int piece) const { return piece & 0b111; }
 
     // quiet move helper
-    inline Move make_pawn_move(int from, int to, int color, PieceType pt, uint8_t flags) const
+    inline Move make_pawn_move(int from, int to, int color, PieceType promo_pt, uint8_t flags) const
     {
         Move m;
 
         m.from = static_cast<uint8_t>(from);
         m.to = static_cast<uint8_t>(to);
-        m.piece = static_cast<uint8_t>((color << 3) | int(pt));
+        m.piece = static_cast<uint8_t>((color << 3) | static_cast<uint8_t>(PieceType::Pawn));
         m.flags = flags;
-        m.promo = (flags & static_cast<uint8_t>(MoveFlag::Promotion)) ? static_cast<uint8_t>(pt) : static_cast<uint8_t>(0xFF);
+        m.promo = (flags & static_cast<uint8_t>(MoveFlag::Promotion)) ? static_cast<uint8_t>(promo_pt) : static_cast<uint8_t>(0xFF);
         m.capture = static_cast<uint8_t>(0xFF);
 
         return m;
