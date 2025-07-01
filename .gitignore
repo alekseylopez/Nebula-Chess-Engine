@@ -45,3 +45,6 @@ Makefile
 
 # Debug
 *.dSYM
+
+# Game folder
+/games/
