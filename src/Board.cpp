@@ -814,7 +814,7 @@ Move Board::from_uci(const std::string& uci) const
     m.from = from;
     m.to = to;
     m.piece = static_cast<uint8_t>(pc);
-    m.capture = static_cast<uint8_t>((piece_at(to) >= 0)? piece_at(to): 0xFF);
+    m.capture = static_cast<uint8_t>((piece_at(to) >= 0) ? piece_at(to): 0xFF);
     m.flags = 0;
     m.promo = 0xFF;
 

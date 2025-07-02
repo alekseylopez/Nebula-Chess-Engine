@@ -1,5 +1,4 @@
 #include "nebula/Search.hpp"
-#include "nebula/Values.hpp"
 
 namespace nebula
 {
@@ -178,6 +177,10 @@ int Search::quiesce(Board& board, int depth, int alpha, int beta)
     if(stand_pat >= beta)
         return stand_pat;
     
+    // delta pruning
+    if (stand_pat + delta_margin < alpha)
+        return stand_pat; 
+    
     // update alpha
     if(stand_pat > alpha)
         alpha = stand_pat;
@@ -198,6 +201,15 @@ int Search::quiesce(Board& board, int depth, int alpha, int beta)
     // recursive call for each imporant move
     for(const Move& move : important)
     {
+        // gain approximation
+        int gain = 0;
+        if(is_capture(move) && move.capture != 0xFF)
+            gain = Values::material_value[move.capture & 0b111] - Values::material_value[move.piece & 0b111];
+
+        // delta cutoff
+        if (stand_pat + gain + Values::material_value[static_cast<int>(PieceType::Pawn)] < alpha)
+            continue;
+        
         board.make_move(move);
 
         int score = -quiesce(board, depth + 1, -beta, -alpha);

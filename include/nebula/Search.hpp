@@ -3,6 +3,7 @@
 
 #include "nebula/Board.hpp"
 #include "nebula/TranspositionTable.hpp"
+#include "nebula/Values.hpp"
 
 #include <limits>
 
@@ -21,6 +22,7 @@ public:
 private:
     static constexpr int infinity = 1000000;
     static constexpr int mate_score = 100000;
+    static constexpr int delta_margin = Values::material_value[static_cast<int>(PieceType::Queen)];
 
     int max_depth;
     TranspositionTable tt;
