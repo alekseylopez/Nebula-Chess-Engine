@@ -48,3 +48,6 @@ Makefile
 
 # Game folder
 /games/
+
+# Output files
+*.txt
