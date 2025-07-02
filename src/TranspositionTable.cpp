@@ -26,7 +26,7 @@ TTEntry* TranspositionTable::probe(uint64_t key)
     return entry.is_valid(key) ? &entry : nullptr;
 }
 
-void TranspositionTable::store(uint64_t key, double eval, int depth, TTFlag flag, Move move)
+void TranspositionTable::store(uint64_t key, int eval, int depth, TTFlag flag, Move move)
 {
     TTEntry& entry = table[key & kIndexMask];
 

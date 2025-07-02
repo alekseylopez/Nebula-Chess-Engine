@@ -19,20 +19,20 @@ public:
     bool best_move(const Board& b, Move& out_best, double& eval);
 
 private:
-    static constexpr double infinity = std::numeric_limits<double>::infinity();
-    static constexpr double mate_score = 10000.0;
+    static constexpr int infinity = 1000000;
+    static constexpr int mate_score = 100000;
 
     int max_depth;
     TranspositionTable tt;
 
     // mutable Board because of make_move/unmake_move
-    double pvs(Board& board, int depth, double alpha, double beta, bool null_move_allowed = true);
+    int pvs(Board& board, int depth, int alpha, int beta, bool null_move_allowed = true);
 
     // quiescence search
-    double quiesce(Board& board, int depth, double alpha, double beta);
+    int quiesce(Board& board, int depth, int alpha, int beta);
 
     // static evaluation: white +, black -
-    double evaluate(const Board& board);
+    int evaluate(const Board& board);
 
     // move ordering by importance
     void order_moves(std::vector<Move>& moves, Board& board, const Move* pv_move = nullptr);

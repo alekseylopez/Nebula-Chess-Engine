@@ -11,7 +11,7 @@ enum class TTFlag : uint8_t { Exact, LowerBound, UpperBound };
 struct TTEntry
 {
     uint64_t key = 0;
-    double eval = 0.0;
+    int eval = 0;
     int depth = -1;
     TTFlag flag = TTFlag::Exact;
     Move move;
@@ -31,7 +31,7 @@ public:
     TTEntry* probe(uint64_t key);
 
     // store new entry
-    void store(uint64_t key, double eval, int depth, TTFlag flag, Move move);
+    void store(uint64_t key, int eval, int depth, TTFlag flag, Move move);
 
 private:
     static constexpr size_t kNumEntries = 1 << 20; // 1M entries (~16 MB)

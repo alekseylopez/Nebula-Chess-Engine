@@ -18,12 +18,12 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         return false;
     
     Move best_move = legal_moves[0];
-    double best_eval = -infinity;
+    int best_eval = -infinity;
     
     // iterative deepening
     for(int depth = 1; depth <= max_depth; ++depth)
     {
-        double current_best = -infinity;
+        int current_best = -infinity;
         Move current_move = legal_moves[0];
         
         // order moves based on previous iteration results
@@ -33,7 +33,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         {
             board.make_move(move);
             
-            double score = -pvs(board, depth - 1, -infinity, infinity);
+            int score = -pvs(board, depth - 1, -infinity, infinity);
             
             board.unmake_move();
             
@@ -55,18 +55,18 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
     }
     
     out_best = best_move;
-    eval = board.turn() == Color::White ? best_eval : -best_eval;
+    eval = static_cast<double>(board.turn() == Color::White ? best_eval : -best_eval) / 100.0;
 
     return true;
 }
 
-double Search::pvs(Board& board, int depth, double alpha, double beta, bool null_move_allowed)
+int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_allowed)
 {
     uint64_t key = board.key();
 
     // draw options
     if(board.is_repetition() || board.is_fifty_move_rule())
-        return 0.0;
+        return 0;
 
     // check transposition table
     const TTEntry* tt_entry = tt.probe(key);
@@ -80,7 +80,7 @@ double Search::pvs(Board& board, int depth, double alpha, double beta, bool null
 
         if(tt_entry->depth >= depth)
         {
-            double tt_score = tt_entry->eval;
+            int tt_score = tt_entry->eval;
 
             if(tt_entry->flag == TTFlag::Exact)
                 return tt_score;
@@ -99,7 +99,7 @@ double Search::pvs(Board& board, int depth, double alpha, double beta, bool null
     {
         board.make_null_move();
 
-        double score = -pvs(board, depth - 3, -beta, -beta + 1, false);
+        int score = -pvs(board, depth - 3, -beta, -beta + 1, false);
 
         board.unmake_null_move();
 
@@ -112,11 +112,11 @@ double Search::pvs(Board& board, int depth, double alpha, double beta, bool null
 
     // checkmate or stalemate
     if(moves.empty())
-        return board.in_check() ? -mate_score + (max_depth - depth) : 0.0;
+        return board.in_check() ? -mate_score + depth : 0;
     
     order_moves(moves, board, has_tt_move ? &tt_move : nullptr);
 
-    double best_score = -infinity;
+    int best_score = -infinity;
     Move best_move = moves[0];
     bool pv_node = true;
 
@@ -125,7 +125,7 @@ double Search::pvs(Board& board, int depth, double alpha, double beta, bool null
     {
         board.make_move(move);
 
-        double score;
+        int score;
         
         if(pv_node)
         {
@@ -170,9 +170,9 @@ double Search::pvs(Board& board, int depth, double alpha, double beta, bool null
     return best_score;
 }
 
-double Search::quiesce(Board& board, int depth, double alpha, double beta)
+int Search::quiesce(Board& board, int depth, int alpha, int beta)
 {
-    double stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
+    int stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
 
     // beta cutoff
     if(stand_pat >= beta)
@@ -200,7 +200,7 @@ double Search::quiesce(Board& board, int depth, double alpha, double beta)
     {
         board.make_move(move);
 
-        double score = -quiesce(board, depth + 1, -beta, -alpha);
+        int score = -quiesce(board, depth + 1, -beta, -alpha);
         
         board.unmake_move();
 
@@ -216,9 +216,9 @@ double Search::quiesce(Board& board, int depth, double alpha, double beta)
     return alpha;
 }
 
-double Search::evaluate(const Board& board)
+int Search::evaluate(const Board& board)
 {
-    double score = 0.0;
+    int score = 0;
     
     for(int piece = 0; piece < Board::num_piece_types; ++piece)
     {
@@ -230,7 +230,7 @@ double Search::evaluate(const Board& board)
         {
             int sq = __builtin_ctzll(white_pieces);
             score += Values::material_value[piece];
-            score += Values::pst[piece][sq] * 0.1;
+            score += Values::pst[piece][sq];
             white_pieces &= white_pieces - 1;
         }
         
@@ -241,7 +241,7 @@ double Search::evaluate(const Board& board)
             int sq = __builtin_ctzll(black_pieces);
             score -= Values::material_value[piece];
             // mirror PST scores vertically
-            score -= Values::pst[piece][sq ^ 56] * 0.1;
+            score -= Values::pst[piece][sq ^ 56];
             black_pieces &= black_pieces - 1;
         }
     }
@@ -274,7 +274,7 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, const Move* pv_
             {
                 int victim_value = Values::material_value[move.capture];
                 int attacker_value = Values::material_value[move.piece];
-                score += victim_value * 10 - attacker_value;
+                score += victim_value - attacker_value / 10;
             }
         }
         
@@ -283,7 +283,7 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, const Move* pv_
         {
             score += 900;
             if(move.promo != 0xFF)
-                score += Values::material_value[move.promo];
+                score += Values::material_value[move.promo] / 10;
         }
         
         // checks
