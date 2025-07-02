@@ -71,6 +71,9 @@ public:
     void make_null_move();
     void unmake_null_move();
 
+    // estimate if null move heuristic is a good idea
+    bool should_try_null_move(int depth) const;
+
     // check for repetition
     bool is_repetition() const;
 

@@ -60,7 +60,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
     return true;
 }
 
-double Search::pvs(Board& board, int depth, double alpha, double beta)
+double Search::pvs(Board& board, int depth, double alpha, double beta, bool null_move_allowed)
 {
     uint64_t key = board.key();
 
@@ -93,6 +93,20 @@ double Search::pvs(Board& board, int depth, double alpha, double beta)
 
     if(depth == 0)
         return quiesce(board, depth, alpha, beta);
+
+    // null move pruning
+    if(null_move_allowed && board.should_try_null_move(depth) && beta < mate_score - 100 && alpha > -mate_score + 100)
+    {
+        board.make_null_move();
+
+        double score = -pvs(board, depth - 3, -beta, -beta + 1, false);
+
+        board.unmake_null_move();
+
+        // if null move causes beta cutoff, we can prune
+        if(score >= beta) // don't return mate scores from null move
+            return score >= mate_score - 100 ? beta : score;
+    }
     
     std::vector<Move> moves = board.generate_moves();
 

@@ -413,6 +413,30 @@ void Board::unmake_null_move()
     zobrist_key = u.prev_zobrist_key;
 }
 
+bool Board::should_try_null_move(int depth) const
+{
+    // basic conditions
+    if(in_check() || depth < 4)
+        return false;
+    
+    // simple zugzwang check
+    int piece_count = __builtin_popcountll(all_pieces_bb);
+    
+    // safe in middlegame
+    if(piece_count > 12)
+        return true;
+    
+    // risky in endgames
+    if(piece_count <= 6)
+        return false;
+    
+    // if we only have pawns and king, zugzwang more likely
+    if((color_bb[as_int(side_to_move)] & ~pieces_bb[as_int(side_to_move)][as_int(PieceType::Pawn)] & ~pieces_bb[as_int(side_to_move)][as_int(PieceType::King)]) == 0)
+        return false;
+    
+    return true;
+}
+
 bool Board::is_repetition() const
 {
     // can't be repetition with < 4 ply

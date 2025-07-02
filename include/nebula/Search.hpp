@@ -26,8 +26,7 @@ private:
     TranspositionTable tt;
 
     // mutable Board because of make_move/unmake_move
-    // returns score from white's perspective
-    double pvs(Board& board, int depth, double alpha, double beta);
+    double pvs(Board& board, int depth, double alpha, double beta, bool null_move_allowed = true);
 
     // quiescence search
     double quiesce(Board& board, int depth, double alpha, double beta);
