@@ -292,9 +292,10 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
     std::vector<std::pair<int, size_t>> move_scores;
     move_scores.reserve(moves.size());
 
-    const std::array<Move,2>* killer = nullptr;
-        if (depth >= 0 && depth < (int)killers.size())
-            killer = &killers[depth];
+    const std::array<Move, 2>* killer = nullptr;
+    
+    if(depth >= 0 && depth < static_cast<int>(killers.size()))
+        killer = &killers[depth];
 
     for(size_t i = 0; i < moves.size(); ++i)
     {

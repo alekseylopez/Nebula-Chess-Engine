@@ -97,6 +97,8 @@ public:
     // returns -1 if empty, otherwise returns (color << 3 | piece_type)
     inline int piece_at(int sq) const { return (unsigned) sq < 64 ? mailbox[sq] : -1; };
 
+    inline int king_sq(Color c) const { return __builtin_ctzll(pieces_bb[as_int(c)][as_int(PieceType::King)]); }
+
     // returns side to move
     inline Color turn() const { return side_to_move; }
 

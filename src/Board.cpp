@@ -540,7 +540,7 @@ bool Board::is_legal(const Move& move)
 
     make_move(move);
 
-    l = !is_attacked(__builtin_ctzll(pieces_bb[as_int(side_to_move) ^ 1][as_int(PieceType::King)]), side_to_move);
+    l = !is_attacked(king_sq(as_color(as_int(side_to_move) ^ 1)), side_to_move);
 
     unmake_move();
 
