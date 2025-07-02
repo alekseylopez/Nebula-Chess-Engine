@@ -86,30 +86,33 @@ std::string PGNExporter::to_san(const Move& move)
             s += p;
         
         // disambiguation
-        std::vector<Move> moves = board->generate_moves();
-        bool need_file = false, need_rank = false;
-        int count = 0;
-        for(const auto& m : moves)
+        if(pt != static_cast<int>(PieceType::Pawn))
         {
-            if((m.piece & 0b111) == pt && m.to == move.to && m.from != move.from)
+            std::vector<Move> moves = board->generate_moves();
+            bool need_file = false, need_rank = false;
+            int count = 0;
+            for(const auto& m : moves)
             {
-                ++count;
-                
-                if((m.from & 0b111) != (move.from & 0b111))
-                    need_file = true;
-                if((m.from >> 3) != (move.from >> 3))
-                    need_rank = true;
+                if((m.piece & 0b111) == pt && m.to == move.to && m.from != move.from)
+                {
+                    ++count;
+                    
+                    if((m.from & 0b111) != (move.from & 0b111))
+                        need_file = true;
+                    if((m.from >> 3) != (move.from >> 3))
+                        need_rank = true;
+                }
             }
-        }
-        if(count > 0)
-        {
-            if(need_file)
-                s += static_cast<char>('a' + (move.from & 0b111));
-            if(need_rank)
-                s += static_cast<char>('1' + (move.from >> 3));
-            
-            if(!need_file && !need_rank)
-                s += static_cast<char>('a' + (move.from & 0b111));
+            if(count > 0)
+            {
+                if(need_file)
+                    s += static_cast<char>('a' + (move.from & 0b111));
+                if(need_rank)
+                    s += static_cast<char>('1' + (move.from >> 3));
+                
+                if(!need_file && !need_rank)
+                    s += static_cast<char>('a' + (move.from & 0b111));
+            }
         }
 
         // capture

@@ -216,7 +216,7 @@ int Search::quiesce(Board& board, int depth, int alpha, int beta)
             gain = Values::material_value[move.capture & 0b111] - Values::material_value[move.piece & 0b111];
 
         // delta cutoff
-        if (stand_pat + gain + Values::material_value[static_cast<int>(PieceType::Pawn)] < alpha)
+        if(stand_pat + gain + Values::material_value[static_cast<int>(PieceType::Queen)] < alpha)
             continue;
         
         board.make_move(move);
