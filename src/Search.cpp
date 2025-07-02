@@ -276,8 +276,10 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
     std::vector<std::pair<int, size_t>> move_scores;
     move_scores.reserve(moves.size());
 
-    auto& killer = (depth <= max_depth ? killers[depth] : *((std::array<Move, 2>*) nullptr));
-    
+    const std::array<Move,2>* killer = nullptr;
+        if (depth >= 0 && depth < (int)killers.size())
+            killer = &killers[depth];
+
     for(size_t i = 0; i < moves.size(); ++i)
     {
         const Move& move = moves[i];
@@ -287,11 +289,14 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
         if(pv_move && move == *pv_move)
             score += 10000;
         
-        // killer move bonuses
-        if(moves[i] == killer[0])
-            score += 8000;
-        else if(moves[i] == killer[1])
-            score += 7000;
+        if(killer)
+        {
+            // killer move bonuses
+            if(moves[i] == (*killer)[0])
+                score += 8000;
+            else if(moves[i] == (*killer)[1])
+                score += 7000;
+        }
         
         // captures get high priority
         if(is_capture(move))
