@@ -459,112 +459,12 @@ std::vector<Move> Board::generate_pseudo() const
     std::vector<Move> out;
 
     int color = as_int(side_to_move);
-    uint64_t pawns = pieces_bb[color][as_int(PieceType::Pawn)];
-    uint64_t empty = ~all_pieces_bb;
-    uint64_t enemy_occ = color_bb[color ^ 1];
 
-    constexpr uint64_t rank_2 = 0xFFULL << 8;
-    constexpr uint64_t rank_7 = 0xFFULL << 48;
-    constexpr uint64_t file_a = 0x0101010101010101ULL;
-    constexpr uint64_t file_h = 0x8080808080808080ULL;
-
-    // single pushes
-    uint64_t single = color == 0 ? (pawns << 8) : (pawns >> 8);
-    single &= empty;
-    while(single)
-    {
-        int to = __builtin_ctzll(single);
-        single &= single - 1;
-
-        int from = to + (color == 0 ? -8 : 8);
-
-        int rank = to >> 3;
-        if(rank == 7 || rank == 0)
-        {
-            for(auto pt : { PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight})
-                out.push_back(make_pawn_move(from, to, color, pt, static_cast<uint8_t>(MoveFlag::Promotion)));
-        } else
-        {
-            out.push_back(make_pawn_move(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::Quiet)));
-        }
-    }
-
-    // double pushes
-    uint64_t start = pawns & (color == 0 ? rank_2 : rank_7);
-    uint64_t one_step = color == 0 ? ((start << 8) & empty) : ((start >> 8) & empty);
-    uint64_t dbl = color == 0 ? ((one_step << 8) & empty) : ((one_step >> 8) & empty);
-    while(dbl)
-    {
-        int to = __builtin_ctzll(dbl);
-        dbl &= dbl - 1;
-
-        int from = to + (color == 0 ? -16 : 16);
-        out.push_back(make_pawn_move(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::DoublePawnPush)));
-    }
-
-    // captures
-    uint64_t pawns_cp = pawns;
-    while(pawns_cp)
-    {
-        int from = __builtin_ctzll(pawns_cp);
-        pawns_cp &= pawns_cp - 1;
-
-        uint64_t attacks = AttackTables::pawn[color][from] & enemy_occ;
-        while(attacks)
-        {
-            int to = __builtin_ctzll(attacks);
-            attacks &= attacks - 1;
-
-            int rank = to >> 3;
-            if(rank == 7 || rank == 0)
-            {
-                for(auto promo : { PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight })
-                    out.push_back(make_pawn_capture(from, to, color, promo, static_cast<uint8_t>(MoveFlag::Capture) | static_cast<uint8_t>(MoveFlag::Promotion)));
-            } else
-            {
-                out.push_back(make_pawn_capture(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::Capture)));
-            }
-        }
-    }
-
-    // en passant
-    if(en_passant_square >= 0)
-    {
-        uint64_t ep_mask = 1ULL << en_passant_square;
-        uint64_t from_squares;
-        if(color == 0)
-            from_squares = ((ep_mask >> 7) & ~file_a) | ((ep_mask >> 9) & ~file_h);
-        else
-            from_squares = ((ep_mask << 7) & ~file_h) | ((ep_mask << 9) & ~file_a);
-
-        from_squares &= pawns;
-
-        while(from_squares)
-        {
-            int from = __builtin_ctzll(from_squares);
-            from_squares &= from_squares - 1;
-            out.push_back(make_pawn_ep(from, en_passant_square, color));
-        }
-    }
+    // pawns
+    generate_pawn_moves(out);
 
     // knights
-    uint64_t knights = pieces_bb[color][as_int(PieceType::Knight)];
-    uint64_t me = color_bb[color];
-    while(knights)
-    {
-        int from = __builtin_ctzll(knights);
-        knights &= knights - 1;
-
-        uint64_t attacks = AttackTables::knight[from] & ~me;
-        while(attacks)
-        {
-            int to = __builtin_ctzll(attacks);
-            attacks &= attacks - 1;
-
-            bool is_cap = (all_pieces_bb & (1ULL << to)) && ((color_bb[color ^ 1] >> to) & 1);
-            out.push_back(make_piece_move(from, to, color, PieceType::Knight, static_cast<uint8_t>(is_cap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(is_cap ? mailbox[to] : 0xFF)));
-        }
-    }
+    generate_knight_moves(out);
 
     // lambda for sliding pieces
     auto slide = [&](PieceType pt, const auto& dirs)
@@ -615,37 +515,7 @@ std::vector<Move> Board::generate_pseudo() const
     slide(PieceType::Queen, AttackTables::queen_dirs);
 
     // kings
-    uint64_t kings = pieces_bb[color][as_int(PieceType::King)];
-    if(kings)
-    {
-        int from = __builtin_ctzll(kings);
-        uint64_t attacks = AttackTables::king[from] & ~color_bb[color];
-        while(attacks)
-        {
-            int to = __builtin_ctzll(attacks);
-            attacks &= attacks - 1;
-
-            bool isCap = ((color_bb[color ^ 1] >> to) & 1);
-            out.push_back(make_piece_move(from, to, color, PieceType::King, static_cast<uint8_t>(isCap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(isCap ? mailbox[to] : 0xFF)));
-        }
-    }
-
-    // castling
-    if(color == as_int(Color::White))
-    {
-        if((castling_rights & castle_K) && !(all_pieces_bb & ((1ULL << 5) | (1ULL << 6))) && !is_attacked(4, Color::Black) && !is_attacked(5, Color::Black) && !is_attacked(6, Color::Black))
-            out.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::KingCastle)));
-
-        if((castling_rights & castle_Q) && !(all_pieces_bb & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && !is_attacked(4, Color::Black) && !is_attacked(3, Color::Black) && !is_attacked(2, Color::Black))
-            out.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::QueenCastle)));
-    } else
-    {
-        if((castling_rights & castle_k) && !(all_pieces_bb & ((1ULL << 61) | (1ULL << 62))) && !is_attacked(60, Color::White) && !is_attacked(61, Color::White) && !is_attacked(62, Color::White))
-            out.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::KingCastle)));
-        
-        if((castling_rights & castle_q) && !(all_pieces_bb & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) && !is_attacked(60, Color::White) && !is_attacked(59, Color::White) && !is_attacked(58, Color::White))
-            out.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::QueenCastle)));
-    }
+    generate_king_moves(out);
 
     return out;
 }
@@ -657,20 +527,24 @@ std::vector<Move> Board::generate_moves()
     std::vector<Move> legal;
     legal.reserve(pseudo.size());
 
-    Color us = side_to_move;
-    Color foe = (us == Color::White ? Color::Black : Color::White);
-
     for(const auto& move : pseudo)
-    {
-        make_move(move);
-
-        if(!is_attacked(__builtin_ctzll(pieces_bb[as_int(us)][as_int(PieceType::King)]), foe))
+        if(is_legal(move))
             legal.push_back(move);
-        
-        unmake_move();
-    }
 
     return legal;
+}
+
+bool Board::is_legal(const Move& move)
+{
+    bool l;
+
+    make_move(move);
+
+    l = !is_attacked(__builtin_ctzll(pieces_bb[as_int(side_to_move) ^ 1][as_int(PieceType::King)]), side_to_move);
+
+    unmake_move();
+
+    return l;
 }
 
 bool Board::is_attacked(int sq, Color by) const
@@ -765,10 +639,10 @@ bool Board::is_attacked(int sq, Color by) const
 
 bool Board::in_check() const
 {
-    Color us = side_to_move;
-    Color foe = (us == Color::White ? Color::Black : Color::White);
+    int us = as_int(side_to_move);
+    Color foe = as_color(us ^ 1);
     
-    uint64_t king_bb = pieces_bb[as_int(us)][as_int(PieceType::King)];
+    uint64_t king_bb = pieces_bb[us][as_int(PieceType::King)];
 
     if(!king_bb)
         return false;
@@ -997,6 +871,153 @@ Move Board::from_uci(const std::string& uci) const
     }
 
     return m;
+}
+
+void Board::generate_pawn_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+    uint64_t pawns = pieces_bb[color][as_int(PieceType::Pawn)];
+    uint64_t empty = ~all_pieces_bb;
+    uint64_t enemy_occ = color_bb[color ^ 1];
+
+    // single pushes
+    uint64_t single = color == 0 ? (pawns << 8) : (pawns >> 8);
+    single &= empty;
+    while(single)
+    {
+        int to = __builtin_ctzll(single);
+        single &= single - 1;
+
+        int from = to + (color == 0 ? -8 : 8);
+
+        int rank = to >> 3;
+        if(rank == 7 || rank == 0)
+        {
+            for(auto pt : { PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight})
+                moves.push_back(make_pawn_move(from, to, color, pt, static_cast<uint8_t>(MoveFlag::Promotion)));
+        } else
+        {
+            moves.push_back(make_pawn_move(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::Quiet)));
+        }
+    }
+
+    // double pushes
+    uint64_t start = pawns & (color == 0 ? rank_2 : rank_7);
+    uint64_t one_step = color == 0 ? ((start << 8) & empty) : ((start >> 8) & empty);
+    uint64_t dbl = color == 0 ? ((one_step << 8) & empty) : ((one_step >> 8) & empty);
+    while(dbl)
+    {
+        int to = __builtin_ctzll(dbl);
+        dbl &= dbl - 1;
+
+        int from = to + (color == 0 ? -16 : 16);
+        moves.push_back(make_pawn_move(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::DoublePawnPush)));
+    }
+
+    // captures
+    uint64_t pawns_cp = pawns;
+    while(pawns_cp)
+    {
+        int from = __builtin_ctzll(pawns_cp);
+        pawns_cp &= pawns_cp - 1;
+
+        uint64_t attacks = AttackTables::pawn[color][from] & enemy_occ;
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            int rank = to >> 3;
+            if(rank == 7 || rank == 0)
+            {
+                for(auto promo : { PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight })
+                    moves.push_back(make_pawn_capture(from, to, color, promo, static_cast<uint8_t>(MoveFlag::Capture) | static_cast<uint8_t>(MoveFlag::Promotion)));
+            } else
+            {
+                moves.push_back(make_pawn_capture(from, to, color, PieceType::Pawn, static_cast<uint8_t>(MoveFlag::Capture)));
+            }
+        }
+    }
+
+    // en passant
+    if(en_passant_square >= 0)
+    {
+        uint64_t ep_mask = 1ULL << en_passant_square;
+        uint64_t from_squares;
+        if(color == 0)
+            from_squares = ((ep_mask >> 7) & ~file_a) | ((ep_mask >> 9) & ~file_h);
+        else
+            from_squares = ((ep_mask << 7) & ~file_h) | ((ep_mask << 9) & ~file_a);
+
+        from_squares &= pawns;
+
+        while(from_squares)
+        {
+            int from = __builtin_ctzll(from_squares);
+            from_squares &= from_squares - 1;
+            moves.push_back(make_pawn_ep(from, en_passant_square, color));
+        }
+    }
+}
+
+void Board::generate_knight_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+
+    uint64_t knights = pieces_bb[color][as_int(PieceType::Knight)];
+    uint64_t me = color_bb[color];
+    while(knights)
+    {
+        int from = __builtin_ctzll(knights);
+        knights &= knights - 1;
+
+        uint64_t attacks = AttackTables::knight[from] & ~me;
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            bool is_cap = (all_pieces_bb & (1ULL << to)) && ((color_bb[color ^ 1] >> to) & 1);
+            moves.push_back(make_piece_move(from, to, color, PieceType::Knight, static_cast<uint8_t>(is_cap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(is_cap ? mailbox[to] : 0xFF)));
+        }
+    }
+}
+
+void Board::generate_king_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+
+    uint64_t kings = pieces_bb[color][as_int(PieceType::King)];
+    if(kings)
+    {
+        int from = __builtin_ctzll(kings);
+        uint64_t attacks = AttackTables::king[from] & ~color_bb[color];
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            bool isCap = ((color_bb[color ^ 1] >> to) & 1);
+            moves.push_back(make_piece_move(from, to, color, PieceType::King, static_cast<uint8_t>(isCap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(isCap ? mailbox[to] : 0xFF)));
+        }
+    }
+
+    // castling
+    if(color == as_int(Color::White))
+    {
+        if((castling_rights & castle_K) && !(all_pieces_bb & ((1ULL << 5) | (1ULL << 6))) && !is_attacked(4, Color::Black) && !is_attacked(5, Color::Black) && !is_attacked(6, Color::Black))
+            moves.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::KingCastle)));
+
+        if((castling_rights & castle_Q) && !(all_pieces_bb & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && !is_attacked(4, Color::Black) && !is_attacked(3, Color::Black) && !is_attacked(2, Color::Black))
+            moves.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::QueenCastle)));
+    } else
+    {
+        if((castling_rights & castle_k) && !(all_pieces_bb & ((1ULL << 61) | (1ULL << 62))) && !is_attacked(60, Color::White) && !is_attacked(61, Color::White) && !is_attacked(62, Color::White))
+            moves.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::KingCastle)));
+        
+        if((castling_rights & castle_q) && !(all_pieces_bb & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) && !is_attacked(60, Color::White) && !is_attacked(59, Color::White) && !is_attacked(58, Color::White))
+            moves.push_back(make_castle_move(static_cast<uint8_t>(MoveFlag::QueenCastle)));
+    }
 }
 
 int Board::piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const

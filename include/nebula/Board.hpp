@@ -86,6 +86,9 @@ public:
     // getting moves
     std::vector<Move> generate_moves();
 
+    // legality check
+    bool is_legal(const Move& move);
+
     // get a bitboard
     inline uint64_t pieces(Color c, PieceType pt) const { return pieces_bb[as_int(c)][as_int(pt)]; }
     inline uint64_t occupancy(Color c) const { return color_bb[as_int(c)]; };
@@ -166,6 +169,11 @@ private:
     // for Zobrist hashing
     uint64_t zobrist_key;
 
+    static constexpr uint64_t rank_2 = 0xFFULL << 8;
+    static constexpr uint64_t rank_7 = 0xFFULL << 48;
+    static constexpr uint64_t file_a = 0x0101010101010101ULL;
+    static constexpr uint64_t file_h = 0x8080808080808080ULL;
+
     // seed for Zobrist hashing initialization
     static constexpr uint64_t seed = 0x9E3779B97F4A7C15ULL;
 
@@ -180,6 +188,11 @@ private:
     inline void update_zobrist_side() { zobrist_key ^= zobrist_black_to_move; }
     inline void update_zobrist_castling(int oldR, int newR) { zobrist_key ^= zobrist_castling[oldR]; zobrist_key ^= zobrist_castling[newR]; }
     inline void update_zobrist_enpassant(int oldSq, int newSq) { if(oldSq >= 0) zobrist_key ^= zobrist_en_passant_file[oldSq & 7]; if(newSq >= 0) zobrist_key ^= zobrist_en_passant_file[newSq & 7]; }
+
+    // move generation organization
+    void generate_pawn_moves(std::vector<Move>& moves) const;
+    void generate_knight_moves(std::vector<Move>& moves) const;
+    void generate_king_moves(std::vector<Move>& moves) const;
 
     // returns -1 if invalid char, otherwise returns 0 and modifies out_c and out_pt
     int piece_char_to_code(char c, Color& out_c, PieceType& out_pt) const;
