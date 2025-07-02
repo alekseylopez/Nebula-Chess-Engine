@@ -112,7 +112,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
 
     // checkmate or stalemate
     if(moves.empty())
-        return board.in_check() ? -mate_score + depth : 0;
+        return board.in_check() ? -mate_score + (max_depth - depth) : 0;
     
     order_moves(moves, board, has_tt_move ? &tt_move : nullptr);
 
