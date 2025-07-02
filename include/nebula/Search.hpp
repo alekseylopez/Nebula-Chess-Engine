@@ -4,7 +4,6 @@
 #include "nebula/Board.hpp"
 #include "nebula/TranspositionTable.hpp"
 
-#include <cstdint>
 #include <limits>
 
 namespace nebula
@@ -28,7 +27,7 @@ private:
 
     // mutable Board because of make_move/unmake_move
     // returns score from white's perspective
-    double negamax(Board& board, int depth, double alpha, double beta);
+    double pvs(Board& board, int depth, double alpha, double beta);
 
     // quiescence search
     double quiesce(Board& board, int depth, double alpha, double beta);
@@ -37,7 +36,7 @@ private:
     double evaluate(const Board& board);
 
     // move ordering by importance
-    void order_moves(std::vector<Move>& moves, Board& board);
+    void order_moves(std::vector<Move>& moves, Board& board, const Move* pv_move = nullptr);
 
     // is move a capture
     inline bool is_capture(const Move& m)

@@ -33,7 +33,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         {
             board.make_move(move);
             
-            double score = -negamax(board, depth - 1, -infinity, infinity);
+            double score = -pvs(board, depth - 1, -infinity, infinity);
             
             board.unmake_move();
             
@@ -60,7 +60,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
     return true;
 }
 
-double Search::negamax(Board& board, int depth, double alpha, double beta)
+double Search::pvs(Board& board, int depth, double alpha, double beta)
 {
     uint64_t key = board.key();
 
@@ -70,17 +70,25 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
 
     // check transposition table
     const TTEntry* tt_entry = tt.probe(key);
+    Move tt_move;
+    bool has_tt_move = false;
 
-    if(tt_entry && tt_entry->depth >= depth)
+    if(tt_entry)
     {
-        double tt_score = tt_entry->eval;
+        tt_move = tt_entry->move;
+        has_tt_move = true;
 
-        if(tt_entry->flag == TTFlag::Exact)
-            return tt_score;
-        else if(tt_entry->flag == TTFlag::LowerBound && tt_score >= beta)
-            return tt_score;
-        else if(tt_entry->flag == TTFlag::UpperBound && tt_score <= alpha)
-            return tt_score;
+        if(tt_entry->depth >= depth)
+        {
+            double tt_score = tt_entry->eval;
+
+            if(tt_entry->flag == TTFlag::Exact)
+                return tt_score;
+            else if(tt_entry->flag == TTFlag::LowerBound && tt_score >= beta)
+                return tt_score;
+            else if(tt_entry->flag == TTFlag::UpperBound && tt_score <= alpha)
+                return tt_score;
+        }
     }
 
     if(depth == 0)
@@ -92,17 +100,32 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
     if(moves.empty())
         return board.in_check() ? -mate_score + (max_depth - depth) : 0.0;
     
-    order_moves(moves, board);
+    order_moves(moves, board, has_tt_move ? &tt_move : nullptr);
 
     double best_score = -infinity;
     Move best_move = moves[0];
+    bool pv_node = true;
 
     // recursive call for each move
     for(const Move& move : moves)
     {
         board.make_move(move);
 
-        double score = -negamax(board, depth - 1, -beta, -alpha);
+        double score;
+        
+        if(pv_node)
+        {
+            // search first move with full window
+            score = -pvs(board, depth - 1, -beta, -alpha);
+        } else
+        {
+            // null window search first
+            score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+            
+            // if it fails high, re-search with full window
+            if(score > alpha && score < beta)
+                score = -pvs(board, depth - 1, -beta, -alpha);
+        }
 
         board.unmake_move();
         
@@ -124,6 +147,8 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
         // update alpha
         if(score > alpha)
             alpha = score;
+        
+        pv_node = false;
     }
 
     tt.store(key, best_score, depth, (best_score <= alpha) ? TTFlag::UpperBound : TTFlag::Exact, best_move);
@@ -134,10 +159,6 @@ double Search::negamax(Board& board, int depth, double alpha, double beta)
 double Search::quiesce(Board& board, int depth, double alpha, double beta)
 {
     double stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
-
-    // reasonable
-    if(depth > 10)
-        return stand_pat;
 
     // beta cutoff
     if(stand_pat >= beta)
@@ -214,33 +235,65 @@ double Search::evaluate(const Board& board)
     return score;
 }
 
-void Search::order_moves(std::vector<Move>& moves, Board& board)
+void Search::order_moves(std::vector<Move>& moves, Board& board, const Move* pv_move)
 {
-    // captures first, then promotions, then others
-    std::sort(moves.begin(), moves.end(), [&](const Move& a, const Move& b)
+    // assign scores to moves for sorting
+    std::vector<std::pair<int, size_t>> move_scores;
+    move_scores.reserve(moves.size());
+    
+    for(size_t i = 0; i < moves.size(); ++i)
     {
-        int score_a = 0, score_b = 0;
+        const Move& move = moves[i];
+        int score = 0;
         
-        // prioritize captures
-        if(is_capture(a))
-            score_a += 1000;
-        if(is_capture(b))
-            score_b += 1000;
+        // PV move gets highest priority
+        if(pv_move && move == *pv_move)
+            score += 10000;
         
-        // then promotions
-        if(is_promotion(a))
-            score_a += 100;
-        if(is_promotion(b))
-            score_b += 100;
+        // captures get high priority
+        if(is_capture(move))
+        {
+            score += 1000;
+
+            // most valuable victim - least valuable attacker
+            if(move.capture != 0xFF)
+            {
+                int victim_value = Values::material_value[move.capture];
+                int attacker_value = Values::material_value[move.piece];
+                score += victim_value * 10 - attacker_value;
+            }
+        }
         
-        // then checks
-        if(gives_check(board, a))
-            score_a += 10;
-        if(gives_check(board, b))
-            score_b += 10;
+        // promotions
+        if(is_promotion(move))
+        {
+            score += 900;
+            if(move.promo != 0xFF)
+                score += Values::material_value[move.promo];
+        }
         
-        return score_a > score_b;
-    });
+        // checks
+        if(gives_check(board, move))
+            score += 50;
+        
+        // castling moves
+        if(move.flags & (static_cast<uint8_t>(MoveFlag::KingCastle) | static_cast<uint8_t>(MoveFlag::QueenCastle)))
+            score += 25;
+        
+        move_scores.emplace_back(score, i);
+    }
+    
+    // sort by score
+    std::sort(move_scores.begin(), move_scores.end(), [](const auto& a, const auto& b){ return a.first > b.first; });
+    
+    // reorder moves based on scores
+    std::vector<Move> ordered_moves;
+    ordered_moves.reserve(moves.size());
+    
+    for(const auto& pair : move_scores)
+        ordered_moves.push_back(moves[pair.second]);
+    
+    moves = std::move(ordered_moves);
 }
 
 }
