@@ -1,7 +1,7 @@
 #ifndef NEBULA_TRANSPOSITIONTABLE_HPP
 #define NEBULA_TRANSPOSITIONTABLE_HPP
 
-#include "Board.hpp"
+#include "nebula/Board.hpp"
 
 namespace nebula
 {

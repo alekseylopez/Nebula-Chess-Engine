@@ -1,7 +1,7 @@
 #ifndef NEBULA_PGNEXPORTER_HPP
 #define NEBULA_PGNEXPORTER_HPP
 
-#include "Board.hpp"
+#include "nebula/Board.hpp"
 
 namespace nebula
 {
