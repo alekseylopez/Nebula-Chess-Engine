@@ -162,6 +162,10 @@ struct Values
             -50, -30, -30, -30, -30, -30, -30, -50
         }
     };
+
+    // castling bonuses
+    static constexpr int castle_rights_bonus = 30;
+    static constexpr int castled_position_bonus = 75;
 };
 
 }

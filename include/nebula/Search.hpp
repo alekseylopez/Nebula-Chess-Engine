@@ -48,19 +48,20 @@ private:
     int evaluate(const Board& board);
 
     // static evaluation helpers
-    int material(const Board& board);
+    int material(const Board& board, double phase);
+    int castling_bonus(const Board& board, double phase);
 
     // returns a value in [0, 1]: 1 = full opening, 0 = full endgame
     inline double phase_of_game(const Board& board)
     {
-        int phase = max_phase;
+        int phase = 0;
 
         // subtract phase-weight for each piece off the board
         for(int pt = 1; pt <= 4; ++pt)
         {
             // count white + black
             int count = __builtin_popcountll(board.pieces(Color::White,  static_cast<PieceType>(pt))) + __builtin_popcountll(board.pieces(Color::Black,  static_cast<PieceType>(pt)));
-            phase -= (phase_weight[pt] * count);
+            phase += (phase_weight[pt] * count);
         }
 
         // clamp and normalize

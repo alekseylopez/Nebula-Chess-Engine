@@ -240,13 +240,17 @@ int Search::quiesce(Board& board, int depth, int alpha, int beta)
 int Search::evaluate(const Board& board)
 {
     int score = 0;
+
+    // one calculation
+    double phase = phase_of_game(board);
     
-    score += material(board);
+    score += material(board, phase);
+    score += castling_bonus(board, phase);
     
     return score;
 }
 
-int Search::material(const Board& board)
+int Search::material(const Board& board, double phase)
 {
     int mat = 0;
     int opening_score = 0;
@@ -280,10 +284,33 @@ int Search::material(const Board& board)
         }
     }
 
-    double phase = phase_of_game(board);
     int blended_pst = static_cast<int>(opening_score * phase + endgame_score * (1.0 - phase));
 
     return mat + blended_pst;
+}
+
+int Search::castling_bonus(const Board& board, double phase)
+{
+    int bonus = 0;
+
+    // castling rights bonus
+    if(board.castling() & (board.castle_K | board.castle_Q))
+        bonus += Values::castle_rights_bonus;
+    if(board.castling() & (board.castle_k | board.castle_q))
+        bonus -= Values::castle_rights_bonus;
+
+    // detect castled position
+    int wk = board.king_sq(Color::White);
+    if(wk == 6 || wk == 2)
+        bonus += Values::castled_position_bonus;
+    int bk = board.king_sq(Color::Black);
+    if(bk == 62 || bk == 58)
+        bonus -= Values::castled_position_bonus;
+
+    // blend by opening phase
+    bonus = static_cast<int>(bonus * phase);
+
+    return bonus;
 }
 
 void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move)
@@ -293,7 +320,6 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
     move_scores.reserve(moves.size());
 
     const std::array<Move, 2>* killer = nullptr;
-    
     if(depth >= 0 && depth < static_cast<int>(killers.size()))
         killer = &killers[depth];
 
