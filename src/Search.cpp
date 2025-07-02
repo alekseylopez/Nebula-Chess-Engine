@@ -241,6 +241,17 @@ int Search::evaluate(const Board& board)
 {
     int score = 0;
     
+    score += material(board);
+    
+    return score;
+}
+
+int Search::material(const Board& board)
+{
+    int mat = 0;
+    int opening_score = 0;
+    int endgame_score = 0;
+
     for(int piece = 0; piece < Board::num_piece_types; ++piece)
     {
         PieceType pt = static_cast<PieceType>(piece);
@@ -250,8 +261,9 @@ int Search::evaluate(const Board& board)
         while(white_pieces)
         {
             int sq = __builtin_ctzll(white_pieces);
-            score += Values::material_value[piece];
-            score += Values::pst[piece][sq];
+            mat += Values::material_value[piece];
+            opening_score += Values::pst[piece][sq];
+            endgame_score += Values::pst_endgame[piece][sq];
             white_pieces &= white_pieces - 1;
         }
         
@@ -260,14 +272,18 @@ int Search::evaluate(const Board& board)
         while(black_pieces)
         {
             int sq = __builtin_ctzll(black_pieces);
-            score -= Values::material_value[piece];
+            mat -= Values::material_value[piece];
             // mirror PST scores vertically
-            score -= Values::pst[piece][sq ^ 56];
+            opening_score -= Values::pst[piece][sq ^ 56];
+            endgame_score -= Values::pst[piece][sq ^ 56];
             black_pieces &= black_pieces - 1;
         }
     }
-    
-    return score;
+
+    double phase = phase_of_game(board);
+    int blended_pst = static_cast<int>(opening_score * phase + endgame_score * (1.0 - phase));
+
+    return mat + blended_pst;
 }
 
 void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move)
