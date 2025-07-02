@@ -4,7 +4,7 @@ namespace nebula
 {
 
 Search::Search(int max):
-    max_depth(max) {}
+    max_depth(max), killers(max_depth + 1, {Move{}, Move{}}) {}
 
 bool Search::best_move(const Board& b, Move& out_best, double& eval)
 {
@@ -26,7 +26,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         Move current_move = legal_moves[0];
         
         // order moves based on previous iteration results
-        order_moves(legal_moves, board);
+        order_moves(legal_moves, board, depth);
         
         for(const Move& move : legal_moves)
         {
@@ -113,7 +113,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
     if(moves.empty())
         return board.in_check() ? -mate_score + (max_depth - depth) : 0;
     
-    order_moves(moves, board, has_tt_move ? &tt_move : nullptr);
+    order_moves(moves, board, depth, has_tt_move ? &tt_move : nullptr);
 
     int best_score = -infinity;
     Move best_move = moves[0];
@@ -152,6 +152,15 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         // beta cutoff (opponent won't allow this)
         if(score >= beta)
         {
+            if(!is_capture(move))
+            {
+                auto& killer = killers[depth];
+                
+                // shift and store killers
+                killer[1] = killer[0];
+                killer[0] = move;
+            }
+            
             tt.store(key, score, depth, TTFlag::LowerBound, move);
 
             return score;
@@ -196,7 +205,7 @@ int Search::quiesce(Board& board, int depth, int alpha, int beta)
     if(important.empty())
         return stand_pat;
 
-    order_moves(important, board);
+    order_moves(important, board, depth);
 
     // recursive call for each imporant move
     for(const Move& move : important)
@@ -261,11 +270,13 @@ int Search::evaluate(const Board& board)
     return score;
 }
 
-void Search::order_moves(std::vector<Move>& moves, Board& board, const Move* pv_move)
+void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move)
 {
     // assign scores to moves for sorting
     std::vector<std::pair<int, size_t>> move_scores;
     move_scores.reserve(moves.size());
+
+    auto& killer = (depth <= max_depth ? killers[depth] : *((std::array<Move, 2>*) nullptr));
     
     for(size_t i = 0; i < moves.size(); ++i)
     {
@@ -275,6 +286,12 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, const Move* pv_
         // PV move gets highest priority
         if(pv_move && move == *pv_move)
             score += 10000;
+        
+        // killer move bonuses
+        if(moves[i] == killer[0])
+            score += 8000;
+        else if(moves[i] == killer[1])
+            score += 7000;
         
         // captures get high priority
         if(is_capture(move))

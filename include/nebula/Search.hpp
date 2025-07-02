@@ -25,6 +25,7 @@ private:
     static constexpr int delta_margin = Values::material_value[static_cast<int>(PieceType::Queen)];
 
     int max_depth;
+    std::vector<std::array<Move, 2>> killers;
     TranspositionTable tt;
 
     // mutable Board because of make_move/unmake_move
@@ -37,7 +38,7 @@ private:
     int evaluate(const Board& board);
 
     // move ordering by importance
-    void order_moves(std::vector<Move>& moves, Board& board, const Move* pv_move = nullptr);
+    void order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move = nullptr);
 
     // is move a capture
     inline bool is_capture(const Move& m)
