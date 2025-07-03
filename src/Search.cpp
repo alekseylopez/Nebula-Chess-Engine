@@ -90,6 +90,22 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         }
     }
 
+    // razoring
+    if(depth <= 3 && !board.in_check() && std::abs(beta) < mate_score - 100)
+    {
+        int razor_margin = 300 + 50 * depth;
+        int static_eval = evaluate(board);
+
+        if(static_eval + razor_margin < beta)
+        {
+            // verify the position is bad
+            int razor_score = quiesce(board, 0, alpha, beta);
+
+            if(razor_score < beta)
+                return razor_score;
+        }
+    }
+
     if(depth == 0)
         return quiesce(board, depth, alpha, beta);
 
