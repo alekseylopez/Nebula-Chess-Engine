@@ -119,9 +119,13 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
     Move best_move = moves[0];
     bool pv_node = true;
 
+    int move_count = 0;
+
     // recursive call for each move
     for(const Move& move : moves)
     {
+        ++move_count;
+
         board.make_move(move);
 
         int score;
@@ -132,10 +136,22 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
             score = -pvs(board, depth - 1, -beta, -alpha);
         } else
         {
-            // null window search first
-            score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+            if(depth >= 3 && move_count > 3 && !is_capture(move) && !is_promotion(move) && !board.in_check())
+            {
+                // late move reduction
+                int reduction = 1 + (depth > 6 ? 1 : 0) + (move_count > 6 ? 1 : 0);
+
+                score = -pvs(board, depth - 1 - reduction, -alpha - 1, -alpha);
+
+                if(score > alpha)
+                    score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+            } else
+            {
+                // null window search first
+                score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+            }
             
-            // if it fails high, re-search with full window
+            // if null window search fails high, re-search with full window
             if(score > alpha && score < beta)
                 score = -pvs(board, depth - 1, -beta, -alpha);
         }
@@ -349,8 +365,8 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
             // most valuable victim - least valuable attacker
             if(move.capture != 0xFF)
             {
-                int victim_value = Values::material_value[move.capture];
-                int attacker_value = Values::material_value[move.piece];
+                int victim_value = Values::material_value[move.capture & 0b111];
+                int attacker_value = Values::material_value[move.piece & 0b111];
                 score += victim_value - attacker_value / 10;
             }
         }
