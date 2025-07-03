@@ -196,14 +196,14 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
 
 int Search::quiesce(Board& board, int depth, int alpha, int beta)
 {
-    int stand_pat = (board.turn() == Color::White) ? evaluate(board) : -evaluate(board);
+    int stand_pat = evaluate(board);
 
     // beta cutoff
     if(stand_pat >= beta)
         return stand_pat;
     
     // delta pruning
-    if (stand_pat + delta_margin < alpha)
+    if(stand_pat + delta_margin < alpha)
         return stand_pat; 
     
     // update alpha
@@ -263,7 +263,7 @@ int Search::evaluate(const Board& board)
     score += material(board, phase);
     score += castling_bonus(board, phase);
     
-    return score;
+    return (board.turn() == Color::White) ? score : -score;
 }
 
 int Search::material(const Board& board, double phase)

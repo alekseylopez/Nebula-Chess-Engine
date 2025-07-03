@@ -44,7 +44,7 @@ private:
     // quiescence search
     int quiesce(Board& board, int depth, int alpha, int beta);
 
-    // static evaluation: white +, black -
+    // static evaluation
     int evaluate(const Board& board);
 
     // static evaluation helpers
