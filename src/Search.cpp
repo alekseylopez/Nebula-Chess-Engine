@@ -320,12 +320,21 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
 
         board.make_move(move);
 
+        // check extension
+        int extension = 0;
+        bool gives_check_flag = board.in_check();
+
+        if(gives_check_flag)
+            extension = 1;
+        
+        int new_depth = depth - 1 + extension;
+
         int score;
         
         if(move_count == 1)
         {
             // search first move with full window
-            score = -pvs(board, depth - 1, -beta, -alpha);
+            score = -pvs(board, new_depth, -beta, -alpha);
         } else
         {
             if(depth >= 3 && move_count > 3 && is_quiet && !board.in_check())
@@ -337,19 +346,19 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
                 if(futility_pruning && static_eval + futility_margin / 2 > alpha)
                     reduction = std::max(1, reduction - 1);
 
-                score = -pvs(board, depth - 1 - reduction, -alpha - 1, -alpha);
+                score = -pvs(board, new_depth - reduction, -alpha - 1, -alpha);
 
                 if(score > alpha)
-                    score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+                    score = -pvs(board, new_depth, -alpha - 1, -alpha);
             } else
             {
                 // null window search first
-                score = -pvs(board, depth - 1, -alpha - 1, -alpha);
+                score = -pvs(board, new_depth, -alpha - 1, -alpha);
             }
             
             // if null window search fails high, re-search with full window
             if(score > alpha && score < beta)
-                score = -pvs(board, depth - 1, -beta, -alpha);
+                score = -pvs(board, new_depth, -beta, -alpha);
         }
 
         board.unmake_move();
