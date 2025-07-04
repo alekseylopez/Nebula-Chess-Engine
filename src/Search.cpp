@@ -38,7 +38,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
             // first depth - search with full window
             for(const Move& move : legal_moves)
             {
-                board.make_move(move);\
+                board.make_move(move);
 
                 int score = -pvs(board, depth - 1, -infinity, infinity);
 
@@ -50,10 +50,8 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
                     current_move = move;
                 }
             }
-        } else
+        } else // use aspiration windows
         {
-            // now use aspiration windows
-            
             // set initial aspiration window around previous best score
             int window_size = initial_window;
             int alpha = best_eval - window_size;
