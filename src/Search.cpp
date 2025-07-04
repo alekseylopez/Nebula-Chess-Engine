@@ -90,8 +90,11 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         }
     }
 
+    // cache in check
+    bool board_in_check = board.in_check();
+
     // razoring
-    if(depth <= 3 && !board.in_check() && std::abs(beta) < mate_score - 100)
+    if(depth <= 3 && !board_in_check && std::abs(beta) < mate_score - 100)
     {
         int razor_margin = 300 + 50 * depth;
         int static_eval = evaluate(board);
@@ -110,7 +113,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         return quiesce(board, depth, alpha, beta);
 
     // reverse futility pruning
-    if(depth <= 7 && !board.in_check() && std::abs(beta) < mate_score - 100 && beta - alpha > 1)
+    if(depth <= 7 && !board_in_check && std::abs(beta) < mate_score - 100 && beta - alpha > 1)
     {
         int static_eval = evaluate(board);
         int rfp_margin = 120 * depth;
@@ -138,7 +141,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
 
     // checkmate or stalemate
     if(moves.empty())
-        return board.in_check() ? -mate_score + (max_depth - depth) : 0;
+        return board_in_check ? -mate_score + (max_depth - depth) : 0;
     
     order_moves(moves, board, depth, has_tt_move ? &tt_move : nullptr);
 
@@ -157,7 +160,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
     bool futility_pruning = false;
     int futility_margin = 0;
 
-    if(depth <= 8 && !board.in_check() && !pv_node && std::abs(alpha) < mate_score - 100)
+    if(depth <= 8 && !board_in_check && !pv_node && std::abs(alpha) < mate_score - 100)
     {
         static_eval = evaluate(board);
         static_eval_computed = true;
@@ -182,7 +185,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
             continue;
         
         // aggressive futility pruning at depth 1
-        if(depth == 1 && !board.in_check() && !pv_node && is_quiet && !gives_check(board, move) && std::abs(alpha) < mate_score - 100)
+        if(depth == 1 && !board_in_check && !pv_node && is_quiet && !gives_check(board, move) && std::abs(alpha) < mate_score - 100)
         {
             if(!static_eval_computed)
             {
@@ -197,7 +200,7 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         }
 
         // late move pruning
-        if(depth <= 4 && !board.in_check() && !pv_node)
+        if(depth <= 4 && !board_in_check && !pv_node)
         {
             int lmp_threshold = 3 + depth * depth;
 
