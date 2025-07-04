@@ -19,7 +19,12 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
     Move best_move = legal_moves[0];
     int best_eval = -infinity;
     
-    // iterative deepening
+    // aspiration window parameters
+    int initial_window = 50;
+    int max_window = 400;
+    int window_multiplier = 2;
+    
+    // iterative deepening with aspiration windows
     for(int depth = 1; depth <= max_depth; ++depth)
     {
         int current_best = -infinity;
@@ -28,18 +33,125 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         // order moves based on previous iteration results
         order_moves(legal_moves, board, depth);
         
-        for(const Move& move : legal_moves)
+        if(depth == 1)
         {
-            board.make_move(move);
-            
-            int score = -pvs(board, depth - 1, -infinity, infinity);
-            
-            board.unmake_move();
-            
-            if(score > current_best)
+            // first depth - search with full window
+            for(const Move& move : legal_moves)
             {
-                current_best = score;
-                current_move = move;
+                board.make_move(move);\
+
+                int score = -pvs(board, depth - 1, -infinity, infinity);
+
+                board.unmake_move();
+                
+                if(score > current_best)
+                {
+                    current_best = score;
+                    current_move = move;
+                }
+            }
+        } else
+        {
+            // now use aspiration windows
+            
+            // set initial aspiration window around previous best score
+            int window_size = initial_window;
+            int alpha = best_eval - window_size;
+            int beta = best_eval + window_size;
+            
+            bool search_completed = false;
+            int aspiration_attempts = 0;
+            const int max_aspiration_attempts = 4;
+            
+            while(!search_completed && aspiration_attempts < max_aspiration_attempts)
+            {
+                aspiration_attempts++;
+                
+                // search all moves with aspiration window
+                current_best = -infinity;
+                current_move = legal_moves[0];
+                bool failed_low = false;
+                bool failed_high = false;
+                
+                for(const Move& move : legal_moves)
+                {
+                    board.make_move(move);
+                    
+                    int score = -pvs(board, depth - 1, -beta, -alpha);
+                    
+                    board.unmake_move();
+                    
+                    if(score > current_best)
+                    {
+                        current_best = score;
+                        current_move = move;
+                    }
+                    
+                    // check for aspiration window failures
+                    if(score <= alpha)
+                    {
+                        failed_low = true;
+                    } else if(score >= beta)
+                    {
+                        // beta cutoff
+                        failed_high = true;
+
+                        break;
+                    }
+                }
+                
+                // handle aspiration window failures
+                if(failed_low && current_best <= alpha)
+                {
+                    // expand window down if failed low
+                    alpha = std::max(-infinity, alpha - window_size);
+                    window_size = std::min(max_window, window_size * window_multiplier);
+                    
+                    // infinite window if too big
+                    if(window_size >= max_window)
+                    {
+                        alpha = -infinity;
+                        search_completed = true; // final attempt
+                    }
+                } else if(failed_high && current_best >= beta)
+                {
+                    // expand window upward if failed high
+                    beta = std::min(infinity, beta + window_size);
+                    window_size = std::min(max_window, window_size * window_multiplier);
+                    
+                    // infinite window if too big
+                    if(window_size >= max_window)
+                    {
+                        beta = infinity;
+                        search_completed = true; // final attempt
+                    }
+                } else
+                {
+                    // search completed successfully within window
+                    search_completed = true;
+                }
+            }
+            
+            // exhausted aspiration attempts = search with infinite window
+            if(!search_completed)
+            {
+                current_best = -infinity;
+                current_move = legal_moves[0];
+                
+                for(const Move& move : legal_moves)
+                {
+                    board.make_move(move);
+
+                    int score = -pvs(board, depth - 1, -infinity, infinity);
+
+                    board.unmake_move();
+                    
+                    if(score > current_best)
+                    {
+                        current_best = score;
+                        current_move = move;
+                    }
+                }
             }
         }
         
