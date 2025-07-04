@@ -31,7 +31,7 @@ bool Search::best_move(const Board& b, Move& out_best, double& eval)
         Move current_move = legal_moves[0];
         
         // order moves based on previous iteration results
-        order_moves(legal_moves, board, depth);
+        order_moves(legal_moves, board, depth, depth > 1 ? &best_move : nullptr);
         
         if(depth == 1)
         {
