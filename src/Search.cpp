@@ -109,6 +109,17 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
     if(depth == 0)
         return quiesce(board, depth, alpha, beta);
 
+    // reverse futility pruning
+    if(depth <= 7 && !board.in_check() && std::abs(beta) < mate_score - 100 && beta - alpha > 1)
+    {
+        int static_eval = evaluate(board);
+        int rfp_margin = 120 * depth;
+
+        // conservative scoring
+        if(static_eval - rfp_margin >= beta)
+            return static_eval - rfp_margin;
+    }
+
     // null move pruning
     if(null_move_allowed && board.should_try_null_move(depth) && beta < mate_score - 100 && alpha > -mate_score + 100)
     {
@@ -133,29 +144,85 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
 
     int best_score = -infinity;
     Move best_move = moves[0];
-    bool pv_node = true;
+    bool pv_node = (beta - alpha > 1);
 
     int move_count = 0;
+    int quiet_moves_searched = 0;
+
+    // cache static eval
+    int static_eval = -infinity;
+    bool static_eval_computed = false;
+    
+    // prep for futility pruning
+    bool futility_pruning = false;
+    int futility_margin = 0;
+
+    if(depth <= 8 && !board.in_check() && !pv_node && std::abs(alpha) < mate_score - 100)
+    {
+        static_eval = evaluate(board);
+        static_eval_computed = true;
+        futility_margin = 100 + 50 * depth;
+
+        if(static_eval + futility_margin < alpha)
+            futility_pruning = true;
+    }
 
     // recursive call for each move
     for(const Move& move : moves)
     {
         ++move_count;
 
+        bool is_quiet = !is_capture(move) && !is_promotion(move);
+
+        if(is_quiet)
+            ++quiet_moves_searched;
+        
+        // futility pruning
+        if(futility_pruning && is_quiet && !gives_check(board, move))
+            continue;
+        
+        // aggressive futility pruning at depth 1
+        if(depth == 1 && !board.in_check() && !pv_node && is_quiet && !gives_check(board, move) && std::abs(alpha) < mate_score - 100)
+        {
+            if(!static_eval_computed)
+            {
+                static_eval = evaluate(board);
+                static_eval_computed = true;
+            }
+
+            int extended_margin = 200;
+
+            if(static_eval + extended_margin < alpha)
+                continue;
+        }
+
+        // late move pruning
+        if(depth <= 4 && !board.in_check() && !pv_node)
+        {
+            int lmp_threshold = 3 + depth * depth;
+
+            if(quiet_moves_searched >= lmp_threshold)
+                continue;
+        }
+
         board.make_move(move);
 
         int score;
         
-        if(pv_node)
+        if(move_count == 1)
         {
             // search first move with full window
             score = -pvs(board, depth - 1, -beta, -alpha);
         } else
         {
-            if(depth >= 3 && move_count > 3 && !is_capture(move) && !is_promotion(move) && !board.in_check())
+            if(depth >= 3 && move_count > 3 && is_quiet && !board.in_check())
             {
                 // late move reduction
                 int reduction = 1 + (depth > 6 ? 1 : 0) + (move_count > 6 ? 1 : 0);
+
+                // reduce reduction if position is close to alpha (might be important)
+                if(futility_pruning && static_eval + futility_margin / 2 > alpha)
+                    reduction = std::max(1, reduction - 1);
 
                 score = -pvs(board, depth - 1 - reduction, -alpha - 1, -alpha);
 
@@ -201,8 +268,15 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         // update alpha
         if(score > alpha)
             alpha = score;
+    }
+
+    // futility pruning
+    if(futility_pruning && best_score == -infinity)
+    {
+        if(!static_eval_computed)
+            static_eval = evaluate(board);
         
-        pv_node = false;
+        return static_eval;
     }
 
     tt.store(key, best_score, depth, (best_score <= alpha) ? TTFlag::UpperBound : TTFlag::Exact, best_move);
