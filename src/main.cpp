@@ -12,7 +12,7 @@ int main(int argc, char* argv[])
 
     // input
     nebula::InputMode mode;
-    int depth = 5;
+    int depth = 6;
     int max_moves = std::numeric_limits<int>::max();
 
     switch(nebula::opts(argc, argv, mode, depth, max_moves))
