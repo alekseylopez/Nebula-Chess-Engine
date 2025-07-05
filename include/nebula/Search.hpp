@@ -23,17 +23,7 @@ private:
     static constexpr int infinity = 1000000;
     static constexpr int mate_score = 100000;
     static constexpr int delta_margin = Values::material_value[static_cast<int>(PieceType::Queen)];
-    static constexpr int phase_weight[6] =
-    {
-        0, // pawn
-        1, // knight
-        1, // bishop
-        2, // rook
-        4, // queen
-        0  // king
-    };
-    static constexpr int max_phase = (phase_weight[1] * 2 + phase_weight[2] * 2 + phase_weight[3] * 2 + phase_weight[4] * 1) * 2;
-
+    
     int max_depth;
     std::vector<std::array<Move, 2>> killers;
     TranspositionTable tt;
@@ -43,33 +33,6 @@ private:
 
     // quiescence search
     int quiesce(Board& board, int depth, int alpha, int beta);
-
-    // static evaluation
-    int evaluate(const Board& board);
-
-    // static evaluation helpers
-    int material(const Board& board, double phase);
-    int castling_bonus(const Board& board, double phase);
-
-    // returns a value in [0, 1]: 1 = full opening, 0 = full endgame
-    inline double phase_of_game(const Board& board)
-    {
-        int phase = 0;
-
-        // subtract phase-weight for each piece off the board
-        for(int pt = 1; pt <= 4; ++pt)
-        {
-            // count white + black
-            int count = __builtin_popcountll(board.pieces(Color::White,  static_cast<PieceType>(pt))) + __builtin_popcountll(board.pieces(Color::Black,  static_cast<PieceType>(pt)));
-            phase += (phase_weight[pt] * count);
-        }
-
-        // clamp and normalize
-        if(phase < 0)
-            phase = 0;
-
-        return static_cast<double>(phase) / max_phase;
-    }
 
     // move ordering by importance
     void order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move = nullptr);
