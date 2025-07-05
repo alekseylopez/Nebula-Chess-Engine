@@ -80,4 +80,19 @@ int Evaluate::castling_bonus(const Board& board, double phase)
     return bonus;
 }
 
+int Evaluate::pawn_structure(const Board& board, double phase)
+{
+    int score = 0;
+    
+    // weaknesses for each color
+    score += analyze_pawn_weaknesses(board, Color::White, phase);
+    score -= analyze_pawn_weaknesses(board, Color::Black, phase);
+    
+    // passed pawns for each color
+    score += analyze_passed_pawns(board, Color::White, phase);
+    score -= analyze_passed_pawns(board, Color::Black, phase);
+    
+    return score;
+}
+
 }
