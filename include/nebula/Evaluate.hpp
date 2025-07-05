@@ -47,6 +47,16 @@ private:
     // static evaluation helpers
     static int material(const Board& board, double phase);
     static int castling_bonus(const Board& board, double phase);
+    static int pawn_structure(const Board& board, double phase);
+
+    // helpers for pawn structure
+    static int analyze_pawn_weaknesses(const Board& board, Color color, double phase);
+    static int analyze_passed_pawns(const Board& board, Color color, double phase);
+    static bool is_isolated_pawn(const Board& board, Color color, int file);
+    static bool is_doubled_pawn(const Board& board, Color color, int file);
+    static bool is_backward_pawn(const Board& board, Color color, int square);
+    static bool is_passed_pawn(const Board& board, Color color, int square);
+    static int passed_pawn_value(int rank, Color color, double phase);
 };
 
 }
