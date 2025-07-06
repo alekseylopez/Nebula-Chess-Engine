@@ -53,19 +53,19 @@ private:
     int get_history_score(const Move& move, Color color) const;
 
     // is move a capture
-    inline bool is_capture(const Move& m)
+    inline bool is_capture(const Move& m) const
     {
         return m.flags & static_cast<uint8_t>(MoveFlag::Capture);
     }
 
     // is move a promotion
-    inline bool is_promotion(const Move& m)
+    inline bool is_promotion(const Move& m) const
     {
         return m.flags & static_cast<uint8_t>(MoveFlag::Promotion);
     }
 
     // is move a check
-    inline bool gives_check(Board& board, const Move& m)
+    inline bool gives_check(Board& board, const Move& m) const
     {
         board.make_move(m);
 
