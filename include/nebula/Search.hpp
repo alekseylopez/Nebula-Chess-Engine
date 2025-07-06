@@ -23,9 +23,12 @@ private:
     static constexpr int infinity = 1000000;
     static constexpr int mate_score = 100000;
     static constexpr int delta_margin = Values::material_value[static_cast<int>(PieceType::Queen)];
+    static constexpr int max_history = 16384;
     
     int max_depth;
     std::vector<std::array<Move, 2>> killers;
+    int history[2][64][64];
+    int butterfly[2][64][64];
     TranspositionTable tt;
 
     // mutable Board because of make_move/unmake_move
@@ -36,6 +39,18 @@ private:
 
     // move ordering by importance
     void order_moves(std::vector<Move>& moves, Board& board, int depth, const Move* pv_move = nullptr);
+
+    // clear history tables
+    void clear_history();
+
+    // scale history to prevent overflow
+    void scale_history();
+
+    // update history tables
+    void update_history(const Move& move, Color color, int depth, bool cutoff);
+
+    // get history score
+    int get_history_score(const Move& move, Color color) const;
 
     // is move a capture
     inline bool is_capture(const Move& m)
