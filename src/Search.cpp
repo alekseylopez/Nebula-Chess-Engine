@@ -5,7 +5,7 @@ namespace nebula
 {
 
 Search::Search(int max):
-    max_depth(max), killers(max_depth + 1, {Move{}, Move{}}) {}
+    max_depth(max), killers(max_depth + 1, { Move{}, Move{} }) {}
 
 bool Search::best_move(const Board& b, Move& out_best, double& eval)
 {
