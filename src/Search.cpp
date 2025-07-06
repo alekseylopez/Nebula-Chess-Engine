@@ -540,4 +540,61 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
     moves = std::move(ordered_moves);
 }
 
+void Search::clear_history()
+{
+    std::memset(history, 0, sizeof(history));
+    std::memset(butterfly, 0, sizeof(butterfly));
+}
+
+void Search::scale_history()
+{
+    for(int c = 0; c < 2; ++c)
+        for(int from = 0; from < 64; ++from)
+            for(int to = 0; to < 64; ++to)
+                history[c][from][to] /= 2;
+}
+
+void Search::update_history(const Move& move, Color color, int depth, bool cutoff)
+{
+    // don't update history for tactical moves
+    if(is_capture(move) || is_promotion(move))
+        return;
+    
+    int c = static_cast<int>(color);
+
+    // quadratic bonus
+    int bonus = depth * depth;
+
+    // move caused beta cutoff
+    if(cutoff)
+    {
+        history[c][move.from][move.to] += bonus;
+
+        // prevent overflow
+        if(history[c][move.from][move.to] > max_history)
+            scale_history();
+    }
+
+    // update total tries
+    ++butterfly[c][move.from][move.to];
+}
+
+int Search::get_history_score(const Move& move, Color color) const
+{
+    // no history for tactical moves
+    if(is_capture(move) || is_promotion(move))
+        return 0;
+    
+    int c = static_cast<int>(color);
+
+    int hist_score = history[c][move.from][move.to];
+    int butterfly_count = butterfly[c][move.from][move.to];
+    
+    if(butterfly_count == 0)
+        return 0;
+    
+    // return success rate scaled by attempts
+    return (hist_score * 1000) / butterfly_count;
+}
+
 }
