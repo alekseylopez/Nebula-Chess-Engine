@@ -5,7 +5,10 @@ namespace nebula
 {
 
 Search::Search(int max):
-    max_depth(max), killers(max_depth + 1, { Move{}, Move{} }) {}
+    max_depth(max), killers(max_depth + 1, { Move{}, Move{} })
+{
+    clear_history();
+}
 
 bool Search::best_move(const Board& b, Move& out_best, double& eval)
 {
@@ -281,6 +284,8 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
             futility_pruning = true;
     }
 
+    Color c = board.turn();
+
     // recursive call for each move
     for(const Move& move : moves)
     {
@@ -374,6 +379,14 @@ int Search::pvs(Board& board, int depth, int alpha, int beta, bool null_move_all
         // beta cutoff (opponent won't allow this)
         if(score >= beta)
         {
+            // update history for move that caused the cutoff
+            update_history(move, c, depth, true);
+
+            // update history for all moves that didn't cause a cutoff
+            for(int i = 0; i < move_count - 1; i++)
+                if(!is_capture(moves[i]) && !is_promotion(moves[i]))
+                    update_history(moves[i], c, depth, false);
+
             if(!is_capture(move))
             {
                 auto& killer = killers[depth];
@@ -476,6 +489,8 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
     if(depth >= 0 && depth < static_cast<int>(killers.size()))
         killer = &killers[depth];
 
+    Color c = board.turn();
+
     for(size_t i = 0; i < moves.size(); ++i)
     {
         const Move& move = moves[i];
@@ -515,6 +530,10 @@ void Search::order_moves(std::vector<Move>& moves, Board& board, int depth, cons
             if(move.promo != 0xFF)
                 score += Values::material_value[move.promo] / 10;
         }
+
+        // history heuristic for quiet moves
+        if(!is_capture(move) && !is_promotion(move))
+            score += get_history_score(move, c);
         
         // checks
         if(gives_check(board, move))
