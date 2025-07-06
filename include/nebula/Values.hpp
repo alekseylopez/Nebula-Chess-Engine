@@ -166,6 +166,16 @@ struct Values
     // castling bonuses
     static constexpr int castle_rights_bonus = 30;
     static constexpr int castled_position_bonus = 75;
+
+    // pawn weaknesses
+    static constexpr int isolated_pawn_penalty = 25;
+    static constexpr int doubled_pawn_penalty = 20;
+    static constexpr int backward_pawn_penalty = 15;
+
+    // passed pawns
+    static constexpr int base_values[] = { 0, 10, 20, 40, 80, 150, 250, 0 };
+    static constexpr int connected_passed_pawn_bonus = 15;
+    static constexpr int protected_passed_pawn_bonus = 10;
 };
 
 }

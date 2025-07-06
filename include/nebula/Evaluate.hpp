@@ -56,7 +56,7 @@ private:
     static bool is_doubled_pawn(const Board& board, Color color, int file);
     static bool is_backward_pawn(const Board& board, Color color, int square);
     static bool is_passed_pawn(const Board& board, Color color, int square);
-    static int passed_pawn_value(int rank, Color color, double phase);
+    static int passed_pawn_value(int rank, double phase);
 };
 
 }
