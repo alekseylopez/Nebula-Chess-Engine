@@ -57,7 +57,7 @@ class EvaluationTuner:
         params = {}
         idx = 0
         
-        params['material_value'] = vector[idx:idx+6].tolist()
+        params['material_value'] = vector[idx:idx + 6].tolist()
         idx += 6
         params['castle_rights_bonus'] = float(vector[idx])
         idx += 1
@@ -73,11 +73,11 @@ class EvaluationTuner:
         idx += 1
         params['protected_passed_pawn_bonus'] = float(vector[idx])
         idx += 1
-        params['base_values'] = vector[idx:idx+8].tolist()
+        params['base_values'] = vector[idx:idx + 8].tolist()
         
         return params
     
     def sigmoid(self, x: float) -> float:
         """Sigmoid function for converting evaluation to win probability"""
-        
+
         return 1.0 / (1.0 + np.exp(-x * self.config.k_factor / 400.0))
