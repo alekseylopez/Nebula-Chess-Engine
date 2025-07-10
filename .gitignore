@@ -51,3 +51,6 @@ Makefile
 
 # Output files
 *.txt
+
+# Virtual environment
+.venv
