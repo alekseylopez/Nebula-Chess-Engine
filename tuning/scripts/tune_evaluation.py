@@ -81,3 +81,41 @@ class EvaluationTuner:
         """Sigmoid function for converting evaluation to win probability"""
 
         return 1.0 / (1.0 + np.exp(-x * self.config.k_factor / 400.0))
+    
+    def compute_loss(self, params_vector: np.ndarray, positions: List[Tuple[str, float]]) -> float:
+        """Compute the loss function for a batch of positions"""
+
+        params = self._vector_to_params(params_vector)
+        total_loss = 0.0
+        
+        for fen, actual_result in positions:
+            eval_score = self.evaluate_position_with_params(fen, params)
+            predicted_result = self.sigmoid(eval_score)
+            
+            # cross-entropy loss
+            total_loss -= actual_result * np.log(max(predicted_result, 1e-10)) + (1 - actual_result) * np.log(max(1 - predicted_result, 1e-10))
+        
+        # add L2 regularization
+        regularization = self.config.regularization * np.sum(params_vector ** 2)
+        
+        return total_loss / len(positions) + regularization
+    
+    def compute_gradient(self, params_vector: np.ndarray, positions: List[Tuple[str, float]]) -> np.ndarray:
+        """Compute gradients using finite differences"""
+        
+        epsilon = 1e-6
+        gradients = np.zeros_like(params_vector)
+        
+        for i in range(len(params_vector)):
+            params_plus = params_vector.copy()
+            params_minus = params_vector.copy()
+            
+            params_plus[i] += epsilon
+            params_minus[i] -= epsilon
+            
+            loss_plus = self.compute_loss(params_plus, positions)
+            loss_minus = self.compute_loss(params_minus, positions)
+            
+            gradients[i] = (loss_plus - loss_minus) / (2 * epsilon)
+        
+        return gradients
