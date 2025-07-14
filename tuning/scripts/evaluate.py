@@ -48,7 +48,7 @@ class ChessPosition:
     
     def _parse_pieces(self, color: str) -> Dict[str, List[int]]:
         """Parse FEN board string to get piece positions"""
-        
+
         pieces = {'P': [], 'N': [], 'B': [], 'R': [], 'Q': [], 'K': []}
         
         rank = 7
@@ -70,3 +70,8 @@ class ChessPosition:
                 file += 1
         
         return pieces
+
+    def get_piece_count(self, color: str, piece_type: str) -> int:
+        """Get count of specific piece type for given color"""
+
+        return len(self.white_pieces[piece_type]) if color == 'w' else len(self.black_pieces[piece_type])
