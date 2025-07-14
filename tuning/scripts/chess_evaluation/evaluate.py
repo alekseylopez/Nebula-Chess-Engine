@@ -140,7 +140,7 @@ class ChessEvaluator:
 
     def _calculate_phase(self, position: ChessPosition) -> float:
         """Calculate game phase (1.0 = opening, 0.0 = endgame)"""
-        
+
         phase = 0
         
         piece_types = ['P', 'N', 'B', 'R', 'Q']
@@ -170,4 +170,54 @@ class ChessEvaluator:
     def _evaluate_pawn_structure(self, position: ChessPosition, phase: float) -> float:
         """Evaluate pawn structure"""
 
+        score = 0.0
+        
+        # white pawns
+        score += self._analyze_pawn_weaknesses(position, 'w', phase)
+        score += self._analyze_passed_pawns(position, 'w', phase)
+        
+        # black pawns
+        score -= self._analyze_pawn_weaknesses(position, 'b', phase)
+        score -= self._analyze_passed_pawns(position, 'b', phase)
+        
+        return score
+    
+    def _analyze_pawn_weaknesses(self, position: ChessPosition, color: str, phase: float) -> float:
+        """Analyze pawn weaknesses for given color"""
+
         return 0 # placeholder
+    
+    def _analyze_passed_pawns(self, position: ChessPosition, color: str, phase: float) -> float:
+        """Analyze passed pawns for given color"""
+
+        return 0 # placeholder
+    
+    def _is_isolated_pawn(self, position: ChessPosition, color: str, file: int) -> bool:
+        """Check if pawn on given file is isolated"""
+
+        return False # placeholder
+    
+    def _is_backward_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
+        """Check if pawn is backward"""
+
+        return False # placeholder
+    
+    def _is_passed_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
+        """Check if pawn is passed"""
+
+        return False # placeholder
+    
+    def _passed_pawn_value(self, rank: int, phase: float) -> float:
+        """Calculate value of passed pawn based on rank"""
+
+        return 0 # placeholder
+    
+    def _has_adjacent_pawns(self, position: ChessPosition, color: str, file: int) -> bool:
+        """Check if there are adjacent pawns"""
+
+        return False # placeholder
+    
+    def _is_protected_by_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
+        """Check if pawn is protected by another pawn"""
+
+        return False # placeholder
