@@ -7,8 +7,8 @@ class ChessEvaluator:
         self.params = params or EvaluationParams()
         
         # phase weights for game phase calculation
-        self.phase_weights = [0, 1, 1, 2, 4, 0]  # P, N, B, R, Q, K
-        self.max_phase = (1 * 2 + 1 * 2 + 2 * 2 + 4 * 1) * 2  # 24
+        self.phase_weights = [0, 1, 1, 2, 4, 0] # P, N, B, R, Q, K
+        self.max_phase = (1 * 2 + 1 * 2 + 2 * 2 + 4 * 1) * 2 # 24
         
         # opening PST
         self.pst_opening = {
@@ -123,3 +123,51 @@ class ChessEvaluator:
                   -30, -30, 0, 0, 0, 0, -30, -30,
                   -50, -30, -30, -30, -30, -30, -30, -50]
         }
+
+    def evaluate(self, position: ChessPosition) -> float:
+        """Main evaluation function"""
+
+        score = 0.0
+        
+        phase = self._calculate_phase(position)
+        
+        score += self._evaluate_material(position, phase)
+        score += self._evaluate_castling(position, phase)
+        score += self._evaluate_pawn_structure(position, phase)
+        
+        # return score from white's perspective
+        return score if position.turn == 'w' else -score
+
+    def _calculate_phase(self, position: ChessPosition) -> float:
+        """Calculate game phase (1.0 = opening, 0.0 = endgame)"""
+        
+        phase = 0
+        
+        piece_types = ['P', 'N', 'B', 'R', 'Q']
+        for i, piece_type in enumerate(piece_types):
+            if i == 0: # skip pawns for phase calculation
+                continue
+            
+            count = (position.get_piece_count('w', piece_type) + 
+                    position.get_piece_count('b', piece_type))
+            phase += self.phase_weights[i] * count
+        
+        if phase < 0:
+            phase = 0
+        
+        return min(phase / self.max_phase, 1.0)
+    
+    def _evaluate_material(self, position: ChessPosition, phase: float) -> float:
+        """Evaluate material balance and piece-square tables"""
+
+        return 0 # placeholder
+    
+    def _evaluate_castling(self, position: ChessPosition, phase: float) -> float:
+        """Evaluate castling rights and castled positions"""
+
+        return 0 # placeholder
+    
+    def _evaluate_pawn_structure(self, position: ChessPosition, phase: float) -> float:
+        """Evaluate pawn structure"""
+
+        return 0 # placeholder
