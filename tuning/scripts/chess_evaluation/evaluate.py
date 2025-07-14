@@ -160,7 +160,30 @@ class ChessEvaluator:
     def _evaluate_material(self, position: ChessPosition, phase: float) -> float:
         """Evaluate material balance and piece-square tables"""
 
-        return 0 # placeholder
+        score = 0.0
+        opening_score = 0.0
+        endgame_score = 0.0
+        
+        piece_types = ['P', 'N', 'B', 'R', 'Q', 'K']
+        
+        for i, piece_type in enumerate(piece_types):
+            # white pieces
+            for square in position.white_pieces[piece_type]:
+                score += self.params.material_value[i]
+                opening_score += self.pst_opening[piece_type][square]
+                endgame_score += self.pst_endgame[piece_type][square]
+            
+            # white pieces (mirror vertically)
+            for square in position.black_pieces[piece_type]:
+                score -= self.params.material_value[i]
+                mirrored_square = square ^ 56  # vertical flip
+                opening_score -= self.pst_opening[piece_type][mirrored_square]
+                endgame_score -= self.pst_endgame[piece_type][mirrored_square]
+        
+        # blend opening and endgame scores
+        blended_pst = opening_score * phase + endgame_score * (1.0 - phase)
+        
+        return score + blended_pst
     
     def _evaluate_castling(self, position: ChessPosition, phase: float) -> float:
         """Evaluate castling rights and castled positions"""
