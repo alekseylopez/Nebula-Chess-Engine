@@ -188,7 +188,27 @@ class ChessEvaluator:
     def _evaluate_castling(self, position: ChessPosition, phase: float) -> float:
         """Evaluate castling rights and castled positions"""
 
-        return 0 # placeholder
+        score = 0.0
+        
+        # castling rights bonus
+        if 'K' in position.castling or 'Q' in position.castling:
+            score += self.params.castle_rights_bonus
+        if 'k' in position.castling or 'q' in position.castling:
+            score -= self.params.castle_rights_bonus
+        
+        # castled position detection
+        if position.white_pieces['K']:
+            wk_square = position.white_pieces['K'][0]
+            if wk_square == 6 or wk_square == 2: # g1 or c1
+                score += self.params.castled_position_bonus
+        
+        if position.black_pieces['K']:
+            bk_square = position.black_pieces['K'][0]
+            if bk_square == 62 or bk_square == 58: # g8 or c8
+                score -= self.params.castled_position_bonus
+        
+        # blend by opening phase
+        return score * phase
     
     def _evaluate_pawn_structure(self, position: ChessPosition, phase: float) -> float:
         """Evaluate pawn structure"""
