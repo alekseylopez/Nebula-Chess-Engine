@@ -286,7 +286,15 @@ class ChessEvaluator:
     def _is_isolated_pawn(self, position: ChessPosition, color: str, file: int) -> bool:
         """Check if pawn on given file is isolated"""
 
-        return False # placeholder
+        pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        
+        # check adjacent files
+        for square in pawns:
+            pawn_file = square % 8
+            if abs(pawn_file - file) == 1:
+                return False
+        
+        return True
     
     def _is_backward_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is backward"""
