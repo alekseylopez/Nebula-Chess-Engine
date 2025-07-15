@@ -357,7 +357,12 @@ class ChessEvaluator:
     def _passed_pawn_value(self, rank: int, phase: float) -> float:
         """Calculate value of passed pawn based on rank"""
 
-        return 0 # placeholder
+        base_value = self.params.base_values[rank]
+        
+        # more valuable in endgame
+        endgame_multiplier = 1.0 + (1.0 - phase) * 1.5
+        
+        return base_value * endgame_multiplier
     
     def _has_adjacent_pawns(self, position: ChessPosition, color: str, file: int) -> bool:
         """Check if there are adjacent pawns"""
