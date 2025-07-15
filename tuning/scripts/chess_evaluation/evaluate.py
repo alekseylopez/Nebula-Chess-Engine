@@ -228,7 +228,34 @@ class ChessEvaluator:
     def _analyze_pawn_weaknesses(self, position: ChessPosition, color: str, phase: float) -> float:
         """Analyze pawn weaknesses for given color"""
 
-        return 0 # placeholder
+        penalty = 0.0
+        
+        pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        
+        # count pawns per file
+        file_counts = [0] * 8
+        for square in pawns:
+            file_counts[square % 8] += 1
+        
+        for square in pawns:
+            file = square % 8
+            
+            # isolated pawn penalty
+            if self._is_isolated_pawn(position, color, file):
+                isolated_penalty = self.params.isolated_pawn_penalty
+                # worse in endgame
+                isolated_penalty *= (1.0 + (1.0 - phase) * 0.5)
+                penalty += isolated_penalty
+            
+            # doubled pawn penalty
+            if file_counts[file] > 1:
+                penalty += self.params.doubled_pawn_penalty
+            
+            # backward pawn penalty
+            if self._is_backward_pawn(position, color, square):
+                penalty += self.params.backward_pawn_penalty
+        
+        return -penalty
     
     def _analyze_passed_pawns(self, position: ChessPosition, color: str, phase: float) -> float:
         """Analyze passed pawns for given color"""
