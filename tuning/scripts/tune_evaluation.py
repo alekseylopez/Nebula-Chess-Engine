@@ -119,3 +119,33 @@ class EvaluationTuner:
             gradients[i] = (loss_plus - loss_minus) / (2 * epsilon)
         
         return gradients
+
+    def train_batch(self, positions: List[Tuple[str, float]]) -> Tuple[float, float]:
+        """Train on a batch of positions"""
+        
+        loss = self.compute_loss(self.param_vector, positions)
+        gradients = self.compute_gradient(self.param_vector, positions)
+        
+        # update parameters using gradient descent
+        self.param_vector -= self.config.learning_rate * gradients
+        
+        # compute accuracy
+        correct = 0
+        total = 0
+        params = self._vector_to_params(self.param_vector)
+        
+        for fen, actual_result in positions:
+            try:
+                eval_score = self.evaluate_position_with_params(fen, params)
+                predicted_result = self.sigmoid(eval_score)
+                
+                # consider prediction correct if within 0.1 of actual
+                if abs(predicted_result - actual_result) < 0.1:
+                    correct += 1
+                total += 1
+            except:
+                continue
+        
+        accuracy = correct / total if total > 0 else 0.0
+        
+        return loss, accuracy
