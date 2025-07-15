@@ -337,7 +337,22 @@ class ChessEvaluator:
     def _is_passed_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is passed"""
 
-        return False # placeholder
+        file = square % 8
+        rank = square // 8
+        
+        enemy_pawns = position.black_pieces['P'] if color == 'w' else position.white_pieces['P']
+        
+        # check if any enemy pawns can stop this pawn
+        for enemy_square in enemy_pawns:
+            enemy_file = enemy_square % 8
+            enemy_rank = enemy_square // 8
+            
+            # check if enemy pawn is in the passed pawn zone
+            if abs(enemy_file - file) <= 1:
+                if (color == 'w' and enemy_rank > rank) or (color == 'b' and enemy_rank < rank):
+                    return False
+        
+        return True
     
     def _passed_pawn_value(self, rank: int, phase: float) -> float:
         """Calculate value of passed pawn based on rank"""
