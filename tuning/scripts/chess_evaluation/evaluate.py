@@ -367,7 +367,13 @@ class ChessEvaluator:
     def _has_adjacent_pawns(self, position: ChessPosition, color: str, file: int) -> bool:
         """Check if there are adjacent pawns"""
 
-        return False # placeholder
+        pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        
+        for square in pawns:
+            if abs((square % 8) - file) == 1:
+                return True
+        
+        return False
     
     def _is_protected_by_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is protected by another pawn"""
