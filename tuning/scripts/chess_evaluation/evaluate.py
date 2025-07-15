@@ -260,7 +260,28 @@ class ChessEvaluator:
     def _analyze_passed_pawns(self, position: ChessPosition, color: str, phase: float) -> float:
         """Analyze passed pawns for given color"""
 
-        return 0 # placeholder
+        bonus = 0.0
+        
+        pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        
+        for square in pawns:
+            if self._is_passed_pawn(position, color, square):
+                rank = (square // 8) if color == 'w' else (7 - (square // 8))
+                bonus += self._passed_pawn_value(rank, phase)
+                
+                # additional bonuses for advanced passed pawns
+                if rank >= 5:
+                    file = square % 8
+                    
+                    # connected passed pawn bonus
+                    if self._has_adjacent_pawns(position, color, file):
+                        bonus += self.params.connected_passed_pawn_bonus
+                    
+                    # protected passed pawn bonus
+                    if self._is_protected_by_pawn(position, color, square):
+                        bonus += self.params.protected_passed_pawn_bonus
+        
+        return bonus
     
     def _is_isolated_pawn(self, position: ChessPosition, color: str, file: int) -> bool:
         """Check if pawn on given file is isolated"""
