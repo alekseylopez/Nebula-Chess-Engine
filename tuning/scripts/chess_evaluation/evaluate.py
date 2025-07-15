@@ -299,7 +299,40 @@ class ChessEvaluator:
     def _is_backward_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is backward"""
 
-        return False # placeholder
+        file = square % 8
+        rank = square // 8
+        
+        own_pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        enemy_pawns = position.black_pieces['P'] if color == 'w' else position.white_pieces['P']
+        
+        # check if can be supported by adjacent pawns
+        can_be_supported = False
+        for adj_file in [file - 1, file + 1]:
+            if 0 <= adj_file < 8:
+                for pawn_square in own_pawns:
+                    if pawn_square % 8 == adj_file:
+                        pawn_rank = pawn_square // 8
+                        if (color == 'w' and pawn_rank <= rank) or (color == 'b' and pawn_rank >= rank):
+                            can_be_supported = True
+                            break
+        
+        # check if blocked by enemy pawn
+        front_square = square + 8 if color == 'w' else square - 8
+        if not (0 <= front_square < 64):
+            return False
+        
+        blocked_by_enemy = False
+        for enemy_square in enemy_pawns:
+            enemy_file = enemy_square % 8
+            enemy_rank = enemy_square // 8
+            
+            # check if enemy pawn attacks the front square
+            if abs(enemy_file - (front_square % 8)) == 1:
+                if (color == 'w' and enemy_rank == front_square // 8 + 1) or (color == 'b' and enemy_rank == front_square // 8 - 1):
+                    blocked_by_enemy = True
+                    break
+        
+        return not can_be_supported and blocked_by_enemy
     
     def _is_passed_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is passed"""
