@@ -378,4 +378,17 @@ class ChessEvaluator:
     def _is_protected_by_pawn(self, position: ChessPosition, color: str, square: int) -> bool:
         """Check if pawn is protected by another pawn"""
 
-        return False # placeholder
+        pawns = position.white_pieces['P'] if color == 'w' else position.black_pieces['P']
+        
+        # check diagonally behind for protecting pawns
+        protection_squares = []
+        if color == 'w':
+            protection_squares = [square - 7, square - 9]
+        else:
+            protection_squares = [square + 7, square + 9]
+        
+        for pawn_square in pawns:
+            if pawn_square in protection_squares and 0 <= pawn_square < 64:
+                return True
+        
+        return False
