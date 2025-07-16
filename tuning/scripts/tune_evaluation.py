@@ -149,3 +149,69 @@ class EvaluationTuner:
         accuracy = correct / total if total > 0 else 0.0
         
         return loss, accuracy
+    
+    def train(self, train_positions: List[Tuple[str, float]], 
+              val_positions: List[Tuple[str, float]] = None) -> Dict:
+        """Train the evaluation function"""
+        print(f"Training on {len(train_positions)} positions")
+        
+        for epoch in range(self.config.epochs):
+            # shuffle training data
+            np.random.shuffle(train_positions)
+            
+            # train in batches
+            epoch_losses = []
+            epoch_accuracies = []
+            
+            for i in range(0, len(train_positions), self.config.batch_size):
+                batch = train_positions[i:i + self.config.batch_size]
+                loss, accuracy = self.train_batch(batch)
+                epoch_losses.append(loss)
+                epoch_accuracies.append(accuracy)
+            
+            # average metrics for epoch
+            avg_loss = np.mean(epoch_losses)
+            avg_accuracy = np.mean(epoch_accuracies)
+            
+            self.history['loss'].append(avg_loss)
+            self.history['accuracy'].append(avg_accuracy)
+            
+            # validation
+            val_loss = None
+            val_accuracy = None
+            if val_positions:
+                val_loss = self.compute_loss(self.param_vector, val_positions)
+                
+                # compute validation accuracy
+                correct = 0
+                total = 0
+                params = self._vector_to_params(self.param_vector)
+                
+                for fen, actual_result in val_positions:
+                    try:
+                        eval_score = self.evaluate_position_with_params(fen, params)
+                        predicted_result = self.sigmoid(eval_score)
+                        
+                        if abs(predicted_result - actual_result) < 0.1:
+                            correct += 1
+                        total += 1
+                    except:
+                        continue
+                
+                val_accuracy = correct / total if total > 0 else 0.0
+            
+            # print progress
+            if epoch % 10 == 0:
+                print(f"Epoch {epoch}: Loss={avg_loss:.4f}, Acc={avg_accuracy:.4f}", end="")
+                if val_loss is not None:
+                    print(f", Val Loss={val_loss:.4f}, Val Acc={val_accuracy:.4f}")
+                else:
+                    print()
+        
+        # update final parameters
+        self.params = self._vector_to_params(self.param_vector)
+        
+        return {
+            'final_params': self.params,
+            'history': self.history
+        }
