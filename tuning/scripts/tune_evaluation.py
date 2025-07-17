@@ -215,3 +215,23 @@ class EvaluationTuner:
             'final_params': self.params,
             'history': self.history
         }
+    
+    def plot_training_history(self):
+        """Plot training history"""
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+        
+        ax1.plot(self.history['loss'])
+        ax1.set_title('Training Loss')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Loss')
+        ax1.grid(True)
+        
+        ax2.plot(self.history['accuracy'])
+        ax2.set_title('Training Accuracy')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Accuracy')
+        ax2.grid(True)
+        
+        plt.tight_layout()
+        plt.show()
