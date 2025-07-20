@@ -235,3 +235,18 @@ class EvaluationTuner:
         
         plt.tight_layout()
         plt.show()
+
+def load_training_data(train_file: str, val_file: str = None) -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
+    """Load training and validation data from CSV files"""
+
+    # load training data
+    train_df = pd.read_csv(train_file)
+    train_positions = [(row['fen'], row['result']) for _, row in train_df.iterrows()]
+    
+    # load validation data if provided
+    val_positions = []
+    if val_file:
+        val_df = pd.read_csv(val_file)
+        val_positions = [(row['fen'], row['result']) for _, row in val_df.iterrows()]
+    
+    return train_positions, val_positions
