@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from chess_evaluation.evaluate import ChessEvaluator, ChessPosition
+from chess_evaluation.types import EvaluationParams
 
 @dataclass
 class TuningConfig:
@@ -81,6 +83,28 @@ class EvaluationTuner:
         """Sigmoid function for converting evaluation to win probability"""
 
         return 1.0 / (1.0 + np.exp(-x * self.config.k_factor / 400.0))
+    
+    def evaluate_position_with_params(self, fen: str, params: Dict) -> float:
+        """Evaluate a position using given parameters"""
+
+        # create evaluation parameters object
+        eval_params = EvaluationParams(
+            material_value=params['material_value'],
+            castle_rights_bonus=params['castle_rights_bonus'],
+            castled_position_bonus=params['castled_position_bonus'],
+            isolated_pawn_penalty=params['isolated_pawn_penalty'],
+            doubled_pawn_penalty=params['doubled_pawn_penalty'],
+            backward_pawn_penalty=params['backward_pawn_penalty'],
+            connected_passed_pawn_bonus=params['connected_passed_pawn_bonus'],
+            protected_passed_pawn_bonus=params['protected_passed_pawn_bonus'],
+            base_values=params['base_values']
+        )
+        
+        # create evaluator with these parameters
+        evaluator = ChessEvaluator(eval_params)
+        position = ChessPosition(fen)
+        
+        return evaluator.evaluate(position)
     
     def compute_loss(self, params_vector: np.ndarray, positions: List[Tuple[str, float]]) -> float:
         """Compute the loss function for a batch of positions"""
@@ -250,3 +274,49 @@ def load_training_data(train_file: str, val_file: str = None) -> Tuple[List[Tupl
         val_positions = [(row['fen'], row['result']) for _, row in val_df.iterrows()]
     
     return train_positions, val_positions
+
+def main():
+    """Main training script"""
+
+    # load data
+    train_positions, val_positions = load_training_data(
+        '../data/training_positions.csv', 
+        '../data/validation_positions.csv'
+    )
+    
+    print(f"Loaded {len(train_positions)} training positions")
+    print(f"Loaded {len(val_positions)} validation positions")
+    
+    # create tuning configuration
+    config = TuningConfig(
+        learning_rate=0.001,
+        batch_size=100,
+        epochs=200,
+        k_factor=1.2,
+        regularization=0.0001
+    )
+    
+    # create tuner
+    tuner = EvaluationTuner(config)
+    
+    # gradient descent training
+    print("\n=== Training with Gradient Descent ===")
+    gd_results = tuner.train(train_positions, val_positions)
+    
+    print("\nFinal parameters from gradient descent:")
+    for key, value in gd_results['final_params'].items():
+        print(f"{key}: {value}")
+    
+    # plot training history
+    tuner.plot_training_history()
+    
+    # save results
+    with open('tuning_results.json', 'w') as f:
+        json.dump({
+            'gradient_descent': gd_results
+        }, f, indent=2)
+    
+    print("\nResults saved to tuning_results.json")
+
+if __name__ == "__main__":
+    main()
