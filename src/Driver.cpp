@@ -151,12 +151,12 @@ void eve(Board& board, int depth, int max_moves)
         }
 
         if(board.is_fifty_move_rule())
-            {
-                std::cout << "Draw by 50-move rule.\n\n";
-                wrapper.set_tag("Result", "1/2-1/2");
-                
-                break;
-            }
+        {
+            std::cout << "Draw by 50-move rule.\n\n";
+            wrapper.set_tag("Result", "1/2-1/2");
+            
+            break;
+        }
 
         nebula::Move m;
         double eval;
