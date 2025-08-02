@@ -131,4 +131,76 @@ uint64_t MagicBitboards::generate_bishop_attacks_slow(int sq, uint64_t occ)
     return attacks;
 }
 
+void MagicBitboards::init_rook_attacks()
+{
+    int offset = 0;
+
+    for(int sq = 0; sq < 64; ++sq)
+    {
+        rook_attack_ptr[sq] = &rook_attacks[offset];
+        
+        uint64_t mask = rook_masks[sq];
+        int bits = __builtin_popcountll(mask);
+        int permutations = 1 << bits;
+        
+        // generate all possible occupancy permutations
+        std::vector<int> bit_indices;
+        for(int i = 0; i < 64; ++i)
+            if(mask & (1ULL << i))
+                bit_indices.push_back(i);
+        
+        for(int i = 0; i < permutations; ++i)
+        {
+            uint64_t occ = 0ULL;
+            for(int j = 0; j < bits; ++j)
+                if(i & (1 << j))
+                    occ |= 1ULL << bit_indices[j];
+            
+            uint64_t attacks = generate_rook_attacks_slow(sq, occ);
+            
+            // magic index
+            uint64_t index = (occ * rook_magics[sq]) >> rook_shifts[sq];
+            rook_attack_ptr[sq][index] = attacks;
+        }
+        
+        offset += permutations;
+    }
+}
+
+void MagicBitboards::init_bishop_attacks()
+{
+    int offset = 0;
+
+    for(int sq = 0; sq < 64; ++sq)
+    {
+        bishop_attack_ptr[sq] = &bishop_attacks[offset];
+        
+        uint64_t mask = bishop_masks[sq];
+        int bits = __builtin_popcountll(mask);
+        int permutations = 1 << bits;
+        
+        // generate all possible occupancy permutations
+        std::vector<int> bit_indices;
+        for(int i = 0; i < 64; ++i)
+            if(mask & (1ULL << i))
+                bit_indices.push_back(i);
+        
+        for(int i = 0; i < permutations; ++i)
+        {
+            uint64_t occ = 0ULL;
+            for(int j = 0; j < bits; ++j)
+                if(i & (1 << j))
+                    occ |= 1ULL << bit_indices[j];
+            
+            uint64_t attacks = generate_bishop_attacks_slow(sq, occ);
+            
+            // magic index
+            uint64_t index = (occ * bishop_magics[sq]) >> bishop_shifts[sq];
+            bishop_attack_ptr[sq][index] = attacks;
+        }
+        
+        offset += permutations;
+    }
+}
+
 }
