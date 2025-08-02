@@ -459,145 +459,11 @@ std::vector<Move> Board::generate_pseudo() const
 {
     std::vector<Move> out;
 
-    int color = as_int(side_to_move);
-
-    // pawns
     generate_pawn_moves(out);
-
-    // knights
     generate_knight_moves(out);
-
-    // rooks
-    {
-        uint64_t bb = pieces_bb[color][as_int(PieceType::Rook)];
-        uint64_t me = color_bb[color];
-        uint64_t foe = color_bb[color ^ 1];
-
-        while(bb)
-        {
-            int from = __builtin_ctzll(bb);
-            bb &= bb - 1;
-
-            uint64_t attacks = MagicBitboards::get_rook_attacks(from, all_pieces_bb) & ~me;
-            
-            while(attacks)
-            {
-                int to = __builtin_ctzll(attacks);
-                attacks &= attacks - 1;
-
-                if(foe & (1ULL << to))
-                    out.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
-                else
-                    out.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Quiet)));
-            }
-        }
-    }
-
-    // bishops
-    {
-        uint64_t bb = pieces_bb[color][as_int(PieceType::Bishop)];
-        uint64_t me = color_bb[color];
-        uint64_t foe = color_bb[color ^ 1];
-
-        while(bb)
-        {
-            int from = __builtin_ctzll(bb);
-            bb &= bb - 1;
-
-            uint64_t attacks = MagicBitboards::get_bishop_attacks(from, all_pieces_bb) & ~me;
-            
-            while(attacks)
-            {
-                int to = __builtin_ctzll(attacks);
-                attacks &= attacks - 1;
-
-                if(foe & (1ULL << to))
-                    out.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
-                else
-                    out.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Quiet)));
-            }
-        }
-    }
-
-    // queens
-    {
-        uint64_t bb = pieces_bb[color][as_int(PieceType::Queen)];
-        uint64_t me = color_bb[color];
-        uint64_t foe = color_bb[color ^ 1];
-
-        while(bb)
-        {
-            int from = __builtin_ctzll(bb);
-            bb &= bb - 1;
-
-            uint64_t attacks = MagicBitboards::get_queen_attacks(from, all_pieces_bb) & ~me;
-            
-            while(attacks)
-            {
-                int to = __builtin_ctzll(attacks);
-                attacks &= attacks - 1;
-
-                if(foe & (1ULL << to))
-                    out.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
-                else
-                    out.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Quiet)));
-            }
-        }
-    }
-
-    /*
-
-    // lambda for sliding pieces
-    auto slide = [&](PieceType pt, const auto& dirs)
-    {
-        uint64_t bb = pieces_bb[color][as_int(pt)];
-        uint64_t me = color_bb[color];
-        uint64_t foe = color_bb[color^1];
-
-        while(bb)
-        {
-            int from = __builtin_ctzll(bb);
-            bb &= bb - 1;
-
-            int f0 = from & 0b111;
-            int r0 = from >> 3;
-
-            for(auto [df, dr] : dirs)
-            {
-                int f = f0 + df, r = r0 + dr;
-                while(f >= 0 && f < 8 && r >= 0 && r < 8)
-                {
-                    int to = r * 8 + f;
-                    uint64_t mask = 1ULL << to;
-
-                    // stop
-                    if(me & mask)
-                        break;
-
-                    // capture and stop
-                    if(foe & mask)
-                    {
-                        out.push_back(make_piece_move(from, to, color, pt, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
-                        break;
-                    }
-                    
-                    // keep sliding
-                    out.push_back(make_piece_move(from, to, color, pt, static_cast<uint8_t>(MoveFlag::Quiet)));
-                    
-                    f += df;
-                    r += dr;
-                }
-            }
-        }
-    };
-
-    slide(PieceType::Rook, AttackTables::rook_dirs);
-    slide(PieceType::Bishop, AttackTables::bishop_dirs);
-    slide(PieceType::Queen, AttackTables::queen_dirs);
-
-    */
-
-    // kings
+    generate_rook_moves(out);
+    generate_bishop_moves(out);
+    generate_queen_moves(out);
     generate_king_moves(out);
 
     return out;
@@ -667,64 +533,6 @@ bool Board::is_attacked(int sq, Color by) const
     uint64_t bishop_attacks = MagicBitboards::get_bishop_attacks(sq, occ);
     if(bishop_attacks & (pieces_bb[c][as_int(PieceType::Bishop)] | pieces_bb[c][as_int(PieceType::Queen)]))
         return true;
-    
-    /*
-    
-    int f0 = sq & 7, r0 = sq >> 3;
-
-    // rook-like sliding attacks
-    for(auto [df, dr] : AttackTables::rook_dirs)
-    {
-        int f = f0 + df, r = r0 + dr;
-        while(f >= 0 && f < 8 && r >= 0 && r < 8)
-        {
-            int t = (r << 3) | f;
-            uint64_t m = 1ULL << t;
-
-            // hit a piece
-            if(occ & m)
-            {
-                int code = mailbox[t];
-
-                int col = decode_color(code), pc = decode_piece(code);
-
-                if(col == c && (pc == as_int(PieceType::Rook) || pc == as_int(PieceType::Queen)))
-                    return true;
-
-                break;
-            }
-
-            f += df; r += dr;
-        }
-    }
-
-    // bishop-like sliding attacks
-    for(auto [df, dr] : AttackTables::bishop_dirs)
-    {
-        int f = f0 + df, r = r0 + dr;
-        while(f >= 0 && f < 8 && r >= 0 && r < 8)
-        {
-            int t = (r << 3) | f;
-            uint64_t m = 1ULL << t;
-
-            // hit a piece
-            if(occ & m)
-            {
-                int code = mailbox[t];
-
-                int col = decode_color(code), pc = decode_piece(code);
-
-                if(col == c && (pc == as_int(PieceType::Bishop) || pc == as_int(PieceType::Queen)))
-                    return true;
-
-                break;
-            }
-
-            f += df; r += dr;
-        }
-    }
-
-    */
 
     return false;
 }
@@ -1071,6 +879,90 @@ void Board::generate_knight_moves(std::vector<Move>& moves) const
 
             bool is_cap = (all_pieces_bb & (1ULL << to)) && ((color_bb[color ^ 1] >> to) & 1);
             moves.push_back(make_piece_move(from, to, color, PieceType::Knight, static_cast<uint8_t>(is_cap ? MoveFlag::Capture : MoveFlag::Quiet), static_cast<uint8_t>(is_cap ? mailbox[to] : 0xFF)));
+        }
+    }
+}
+
+void Board::generate_rook_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+
+    uint64_t bb = pieces_bb[color][as_int(PieceType::Rook)];
+    uint64_t me = color_bb[color];
+    uint64_t foe = color_bb[color ^ 1];
+
+    while(bb)
+    {
+        int from = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        uint64_t attacks = MagicBitboards::get_rook_attacks(from, all_pieces_bb) & ~me;
+        
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            if(foe & (1ULL << to))
+                moves.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+            else
+                moves.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Quiet)));
+        }
+    }
+}
+
+void Board::generate_bishop_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+
+    uint64_t bb = pieces_bb[color][as_int(PieceType::Bishop)];
+    uint64_t me = color_bb[color];
+    uint64_t foe = color_bb[color ^ 1];
+
+    while(bb)
+    {
+        int from = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        uint64_t attacks = MagicBitboards::get_bishop_attacks(from, all_pieces_bb) & ~me;
+        
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            if(foe & (1ULL << to))
+                moves.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+            else
+                moves.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Quiet)));
+        }
+    }
+}
+
+void Board::generate_queen_moves(std::vector<Move>& moves) const
+{
+    int color = as_int(side_to_move);
+
+    uint64_t bb = pieces_bb[color][as_int(PieceType::Queen)];
+    uint64_t me = color_bb[color];
+    uint64_t foe = color_bb[color ^ 1];
+
+    while(bb)
+    {
+        int from = __builtin_ctzll(bb);
+        bb &= bb - 1;
+
+        uint64_t attacks = MagicBitboards::get_queen_attacks(from, all_pieces_bb) & ~me;
+        
+        while(attacks)
+        {
+            int to = __builtin_ctzll(attacks);
+            attacks &= attacks - 1;
+
+            if(foe & (1ULL << to))
+                moves.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+            else
+                moves.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Quiet)));
         }
     }
 }
