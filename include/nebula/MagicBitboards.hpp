@@ -74,6 +74,18 @@ public:
         58, 59, 59, 59, 59, 59, 59, 58
     };
 
+    // attack tables
+    static std::array<uint64_t, 102400> rook_attacks;
+    static std::array<uint64_t, 5248> bishop_attacks;
+    
+    // offsets into attack tables
+    static std::array<uint64_t*, 64> rook_attack_ptr;
+    static std::array<uint64_t*, 64> bishop_attack_ptr;
+
+    // mask generation
+    static std::array<uint64_t, 64> rook_masks;
+    static std::array<uint64_t, 64> bishop_masks;
+
 private:
 
 };
