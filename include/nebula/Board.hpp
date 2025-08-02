@@ -198,6 +198,9 @@ private:
     // move generation organization
     void generate_pawn_moves(std::vector<Move>& moves) const;
     void generate_knight_moves(std::vector<Move>& moves) const;
+    void generate_rook_moves(std::vector<Move>& moves) const;
+    void generate_bishop_moves(std::vector<Move>& moves) const;
+    void generate_queen_moves(std::vector<Move>& moves) const;
     void generate_king_moves(std::vector<Move>& moves) const;
 
     // returns -1 if invalid char, otherwise returns 0 and modifies out_c and out_pt
