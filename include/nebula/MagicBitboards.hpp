@@ -102,7 +102,7 @@ public:
         occ &= bishop_masks[sq];
         occ *= bishop_magics[sq];
         occ >>= bishop_shifts[sq];
-        
+
         return bishop_attack_ptr[sq][occ];
     }
 
@@ -113,7 +113,14 @@ public:
     }
 
 private:
+    static uint64_t generate_rook_mask(int sq);
+    static uint64_t generate_bishop_mask(int sq);
+    static uint64_t generate_rook_attacks_slow(int sq, uint64_t occ);
+    static uint64_t generate_bishop_attacks_slow(int sq, uint64_t occ);
+    static void init_rook_attacks();
+    static void init_bishop_attacks();
 
+    friend struct MagicInit;
 };
 
 }
