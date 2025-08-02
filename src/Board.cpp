@@ -607,14 +607,9 @@ std::vector<Move> Board::generate_moves()
 {
     std::vector<Move> pseudo = generate_pseudo();
 
-    std::vector<Move> legal;
-    legal.reserve(pseudo.size());
-
-    for(const auto& move : pseudo)
-        if(is_legal(move))
-            legal.push_back(move);
-
-    return legal;
+    pseudo.erase(std::remove_if(pseudo.begin(), pseudo.end(), [&](const Move& m){ return !is_legal(m); }), pseudo.end());
+    
+    return pseudo;
 }
 
 bool Board::is_legal(const Move& move)
