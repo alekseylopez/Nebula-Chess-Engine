@@ -46,7 +46,7 @@ Options:
 
 -d, --depth DEPTH
         Maximum search depth (positive integer).
-        Default is set to 5.
+        Default is set to 8.
 
 -l, --length LENGTH
         Maximum game length in moves (positive integer).
@@ -54,7 +54,7 @@ Options:
 
 Examples:
 ./nebula -m PVE --depth 6
-./nebula --mode EVE -d 8 -l 200
+./nebula --mode EVE -d 10 -l 200
 
 )";
 
