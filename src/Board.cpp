@@ -1,5 +1,6 @@
 #include "nebula/Board.hpp"
 #include "nebula/AttackTables.hpp"
+#include "nebula/MagicBitboards.hpp"
 
 #include <random>
 #include <sstream>
@@ -466,6 +467,86 @@ std::vector<Move> Board::generate_pseudo() const
     // knights
     generate_knight_moves(out);
 
+    // rooks
+    {
+        uint64_t bb = pieces_bb[color][as_int(PieceType::Rook)];
+        uint64_t me = color_bb[color];
+        uint64_t foe = color_bb[color ^ 1];
+
+        while(bb)
+        {
+            int from = __builtin_ctzll(bb);
+            bb &= bb - 1;
+
+            uint64_t attacks = MagicBitboards::get_rook_attacks(from, all_pieces_bb) & ~me;
+            
+            while(attacks)
+            {
+                int to = __builtin_ctzll(attacks);
+                attacks &= attacks - 1;
+
+                if(foe & (1ULL << to))
+                    out.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+                else
+                    out.push_back(make_piece_move(from, to, color, PieceType::Rook, static_cast<uint8_t>(MoveFlag::Quiet)));
+            }
+        }
+    }
+
+    // bishops
+    {
+        uint64_t bb = pieces_bb[color][as_int(PieceType::Bishop)];
+        uint64_t me = color_bb[color];
+        uint64_t foe = color_bb[color ^ 1];
+
+        while(bb)
+        {
+            int from = __builtin_ctzll(bb);
+            bb &= bb - 1;
+
+            uint64_t attacks = MagicBitboards::get_bishop_attacks(from, all_pieces_bb) & ~me;
+            
+            while(attacks)
+            {
+                int to = __builtin_ctzll(attacks);
+                attacks &= attacks - 1;
+
+                if(foe & (1ULL << to))
+                    out.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+                else
+                    out.push_back(make_piece_move(from, to, color, PieceType::Bishop, static_cast<uint8_t>(MoveFlag::Quiet)));
+            }
+        }
+    }
+
+    // queens
+    {
+        uint64_t bb = pieces_bb[color][as_int(PieceType::Queen)];
+        uint64_t me = color_bb[color];
+        uint64_t foe = color_bb[color ^ 1];
+
+        while(bb)
+        {
+            int from = __builtin_ctzll(bb);
+            bb &= bb - 1;
+
+            uint64_t attacks = MagicBitboards::get_queen_attacks(from, all_pieces_bb) & ~me;
+            
+            while(attacks)
+            {
+                int to = __builtin_ctzll(attacks);
+                attacks &= attacks - 1;
+
+                if(foe & (1ULL << to))
+                    out.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Capture), static_cast<uint8_t>(mailbox[to])));
+                else
+                    out.push_back(make_piece_move(from, to, color, PieceType::Queen, static_cast<uint8_t>(MoveFlag::Quiet)));
+            }
+        }
+    }
+
+    /*
+
     // lambda for sliding pieces
     auto slide = [&](PieceType pt, const auto& dirs)
     {
@@ -513,6 +594,8 @@ std::vector<Move> Board::generate_pseudo() const
     slide(PieceType::Rook, AttackTables::rook_dirs);
     slide(PieceType::Bishop, AttackTables::bishop_dirs);
     slide(PieceType::Queen, AttackTables::queen_dirs);
+
+    */
 
     // kings
     generate_king_moves(out);
@@ -564,7 +647,7 @@ bool Board::is_attacked(int sq, Color by) const
     uint64_t pawns = pieces_bb[c][as_int(PieceType::Pawn)];
     uint64_t attacks = 0ULL;
 
-    if (by == Color::White)
+    if(by == Color::White)
         attacks = ((pawns << 7) & not_file_h) | ((pawns << 9) & not_file_a);
     else
         attacks = ((pawns >> 9) & not_file_h) | ((pawns >> 7) & not_file_a);
@@ -573,12 +656,24 @@ bool Board::is_attacked(int sq, Color by) const
         return true;
 
     // knight attacks
-    if (AttackTables::knight[sq] & pieces_bb[c][as_int(PieceType::Knight)])
+    if(AttackTables::knight[sq] & pieces_bb[c][as_int(PieceType::Knight)])
         return true;
 
     // king attacks
-    if (AttackTables::king[sq] & pieces_bb[c][as_int(PieceType::King)])
+    if(AttackTables::king[sq] & pieces_bb[c][as_int(PieceType::King)])
         return true;
+    
+    // rook-like sliding attacks
+    uint64_t rook_attacks = MagicBitboards::get_rook_attacks(sq, occ);
+    if(rook_attacks & (pieces_bb[c][as_int(PieceType::Rook)] | pieces_bb[c][as_int(PieceType::Queen)]))
+        return true;
+    
+    // bishop-like sliding attacks
+    uint64_t bishop_attacks = MagicBitboards::get_bishop_attacks(sq, occ);
+    if(bishop_attacks & (pieces_bb[c][as_int(PieceType::Bishop)] | pieces_bb[c][as_int(PieceType::Queen)]))
+        return true;
+    
+    /*
     
     int f0 = sq & 7, r0 = sq >> 3;
 
@@ -633,6 +728,8 @@ bool Board::is_attacked(int sq, Color by) const
             f += df; r += dr;
         }
     }
+
+    */
 
     return false;
 }
