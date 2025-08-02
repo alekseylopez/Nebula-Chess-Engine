@@ -15,33 +15,29 @@ int main(int argc, char* argv[])
     int depth = 8;
     int max_moves = std::numeric_limits<int>::max();
 
-    switch(nebula::opts(argc, argv, mode, depth, max_moves))
+    nebula::ReturnCode code = nebula::opts(argc, argv, mode, depth, max_moves);
+    
+    if(code == nebula::ReturnCode::Good)
     {
-        case nebula::ReturnCode::Good:
+        nebula::Board board;
+
+        switch(mode)
         {
-            nebula::Board board;
-
-            switch(mode)
-            {
-                case nebula::InputMode::PlayerInput:
-                    nebula::pve(board, depth, max_moves);
-                    break;
-                
-                case nebula::InputMode::Auto:
-                    nebula::eve(board, depth, max_moves);
-                    break;
-            }
-
-            break;
+            case nebula::InputMode::PlayerInput:
+                nebula::pve(board, depth, max_moves);
+                break;
+            
+            case nebula::InputMode::Auto:
+                nebula::eve(board, depth, max_moves);
+                break;
         }
-
-        case nebula::ReturnCode::Help:
+    } else
+    {
+        if(code == nebula::ReturnCode::Help)
             return 0;
-            break;
         
-        case nebula::ReturnCode::Error:
+        if(code == nebula::ReturnCode::Error)
             return 1;
-            break;
     }
     
     return 0;
