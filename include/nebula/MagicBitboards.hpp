@@ -86,6 +86,32 @@ public:
     static std::array<uint64_t, 64> rook_masks;
     static std::array<uint64_t, 64> bishop_masks;
 
+    // get rook attacks for a square with given occupancy
+    static inline uint64_t get_rook_attacks(int sq, uint64_t occ)
+    {
+        occ &= rook_masks[sq];
+        occ *= rook_magics[sq];
+        occ >>= rook_shifts[sq];
+
+        return rook_attack_ptr[sq][occ];
+    }
+
+    // get bishop attacks for a square with given occupancy
+    static inline uint64_t get_bishop_attacks(int sq, uint64_t occ)
+    {
+        occ &= bishop_masks[sq];
+        occ *= bishop_magics[sq];
+        occ >>= bishop_shifts[sq];
+        
+        return bishop_attack_ptr[sq][occ];
+    }
+
+    // get queen attacks
+    static inline uint64_t get_queen_attacks(int sq, uint64_t occ)
+    {
+        return get_rook_attacks(sq, occ) | get_bishop_attacks(sq, occ);
+    }
+
 private:
 
 };
