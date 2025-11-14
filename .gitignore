@@ -37,9 +37,6 @@
 # DS Store
 .DS_Store
 
-# Makefile
-Makefile
-
 # Build
 /nebula
 
